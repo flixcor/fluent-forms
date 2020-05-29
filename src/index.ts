@@ -1,15 +1,14 @@
 export type FormQuestion = string | number | string[] | number[]
-export type FormGroup =
-  | Record<string, FormQuestion>
-  | Record<string, FormQuestion>[]
+export type FormGroup = Record<any, any>
 export type FormElement = FormQuestion | FormGroup
+export type Form = Record<any, any>
 
-interface IFormElementBuilderInternal<TForm extends FormGroup> {
+interface IFormElementBuilderInternal<TForm extends Form> {
   _isRequired: (form: IFormEvaluator<TForm>) => boolean
   _isActive: (form: IFormEvaluator<TForm>) => boolean
 }
 
-interface IFormElementBuilder<TForm extends FormGroup> {
+interface IFormElementBuilder<TForm extends Form> {
   isRequired(
     func: (form: IFormEvaluator<TForm>) => boolean
   ): IFormElementBuilderInternal<TForm>
@@ -18,7 +17,7 @@ interface IFormElementBuilder<TForm extends FormGroup> {
   ): IFormElementBuilderInternal<TForm>
 }
 
-class FormElementBuilder<TForm extends FormGroup, TElement extends FormElement>
+class FormElementBuilder<TForm extends Form, TElement extends FormElement>
   implements IFormElementBuilderInternal<TForm>, IFormElementBuilder<TForm> {
   path: (x: TForm) => TElement
   _isRequired: (form: IFormEvaluator<TForm>) => boolean = () => false
@@ -41,7 +40,7 @@ class FormElementBuilder<TForm extends FormGroup, TElement extends FormElement>
   }
 }
 
-export interface IFormBuilder<T extends FormGroup> {
+export interface IFormBuilder<T extends Form> {
   setValue<Qt extends FormQuestion>(path: (x: T) => Qt, value: Qt): void
 
   getStatus<Qt extends FormElement>(path: (x: T) => Qt): IFormElementStatus
@@ -53,7 +52,7 @@ export interface IFormBuilder<T extends FormGroup> {
   group<Gt extends FormGroup>(path: (x: T) => Gt): FormElementBuilder<T, Gt>
 }
 
-interface IFormEvaluator<T extends FormGroup> {
+interface IFormEvaluator<T extends Form> {
   evaluate<TE extends FormElement>(
     path: (x: T) => TE,
     evaluation: (x: TE) => boolean
@@ -67,7 +66,7 @@ export interface IFormElementStatus {
   path: string
 }
 
-class FormBuilder<T extends FormGroup>
+class FormBuilder<T extends Form>
   implements IFormEvaluator<T>, IFormBuilder<T> {
   private form: T
 
@@ -192,8 +191,6 @@ class FormBuilder<T extends FormGroup>
   }
 }
 
-export function createFormBuilder<T extends FormGroup>(
-  form: T
-): IFormBuilder<T> {
+export function createFormBuilder<T extends Form>(form: T): IFormBuilder<T> {
   return <IFormBuilder<T>>new FormBuilder(form)
 }
