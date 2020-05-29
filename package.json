@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "",
   "keywords": [],
-  "author": "",
+  "author": "Felix Cornelissen",
   "license": "ISC",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
