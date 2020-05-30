@@ -1,6 +1,6 @@
 {
   "name": "fluent-forms",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "",
   "keywords": [],
   "author": "Felix Cornelissen",
@@ -9,7 +9,7 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "prepublish": "tsc",
+    "prepare": "tsc",
     "lint": "eslint --ext .js,.ts --ignore-path .gitignore ."
   },
   "lint-staged": {
