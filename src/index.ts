@@ -1,4 +1,4 @@
-export type FormQuestion = string | number | string[] | number[]
+export type FormQuestion = string | number | (string | number)[]
 export type FormGroup = Record<any, any>
 export type FormElement = FormQuestion | FormGroup
 export type Form = Record<any, any>
