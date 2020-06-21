@@ -1,7 +1,9 @@
 export type FormQuestion = string | number | (string | number)[]
-export type FormGroup = { [key: string]: FormQuestion | FormGroup }
-export type FormElement = FormQuestion | FormGroup
-export type Form = FormGroup
+export type FormGroup = {
+  [key: string]: FormElement
+}
+export type FormElement = FormQuestion | FormGroup | FormGroup[]
+export type Form = Record<string, FormElement>
 
 interface IFormElementBuilderInternal<TForm extends Form> {
   _isRequired: (form: IFormEvaluator<TForm>) => boolean
