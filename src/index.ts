@@ -10,6 +10,60 @@ interface IFormElementBuilderInternal<TForm extends Form> {
   _isActive: (form: IFormEvaluator<TForm>) => boolean
 }
 
+const getPathString = function (path: (x: any) => any) {
+  let str = path.toString()
+  str = str.substring(str.indexOf('.') + 1)
+
+  if (str.includes('\n')) {
+    str = str.substring(0, str.indexOf('\n'))
+  }
+
+  if (str.includes(';')) {
+    str = str.substring(0, str.indexOf(';'))
+  }
+
+  if (str.includes('}')) {
+    str = str.substring(0, str.indexOf('}'))
+  }
+
+  return str
+}
+
+class RecurringGroupBuilder<TForm extends Form, TGroup extends FormGroup>
+  implements IRecurringGroupBuilder<TGroup> {
+  path: (x: TForm) => TGroup[]
+  groupElementBuilders: Record<string, IFormElementBuilder<TGroup>> = {}
+
+  constructor(path: (x: TForm) => TGroup[]) {
+    this.path = path
+  }
+
+  public question<Qt extends FormQuestion>(path: (x: TGroup) => Qt) {
+    return this.getElementBuilder(path)
+  }
+
+  private getElementBuilder<Et extends FormElement>(path: (x: TGroup) => Et) {
+    const pathStr = getPathString(path)
+
+    let builder = <GroupElementBuilder<TGroup, Et>>(
+      this.groupElementBuilders[pathStr]
+    )
+
+    if (!builder) {
+      builder = new GroupElementBuilder<TGroup, Et>(path)
+      this.groupElementBuilders[pathStr] = builder
+    }
+
+    return builder
+  }
+}
+
+export interface IRecurringGroupBuilder<T extends FormGroup> {
+  question<Qt extends FormQuestion>(
+    path: (x: T) => Qt
+  ): FormElementBuilder<T, Qt>
+}
+
 interface IFormElementBuilder<TForm extends Form> {
   isRequired(
     func: (form: IFormEvaluator<TForm>) => boolean
@@ -17,6 +71,29 @@ interface IFormElementBuilder<TForm extends Form> {
   isActive(
     func: (form: IFormEvaluator<TForm>) => boolean
   ): IFormElementBuilderInternal<TForm>
+}
+
+class GroupElementBuilder<TForm extends FormGroup, TElement extends FormElement>
+  implements IFormElementBuilderInternal<TForm>, IFormElementBuilder<TForm> {
+  path: (x: TForm) => TElement
+  _isRequired: (form: IFormEvaluator<TForm>) => boolean = () => false
+  _isActive: (form: IFormEvaluator<TForm>) => boolean = () => true
+
+  constructor(path: (x: TForm) => TElement) {
+    this.path = path
+  }
+
+  public isRequired(
+    func: (form: IFormEvaluator<TForm>) => boolean = () => true
+  ) {
+    this._isRequired = func
+    return this
+  }
+
+  public isActive(func: (form: IFormEvaluator<TForm>) => boolean) {
+    this._isActive = func
+    return this
+  }
 }
 
 class FormElementBuilder<TForm extends Form, TElement extends FormElement>
@@ -52,6 +129,10 @@ export interface IFormBuilder<T extends Form> {
   ): FormElementBuilder<T, Qt>
 
   group<Gt extends FormGroup>(path: (x: T) => Gt): FormElementBuilder<T, Gt>
+
+  recurringGroup<Gt extends FormGroup>(
+    path: (x: T) => Gt[]
+  ): RecurringGroupBuilder<T, Gt>
 }
 
 interface IFormEvaluator<T extends Form> {
@@ -77,12 +158,17 @@ class FormBuilder<T extends Form>
   constructor(form: T) {
     this.form = form
   }
+  recurringGroup<Gt extends FormGroup>(
+    path: (x: T) => Gt[]
+  ): RecurringGroupBuilder<T, Gt> {
+    throw new Error('Method not implemented.')
+  }
 
   evaluate<TE extends FormElement>(
     path: (x: T) => TE,
     evaluation: (x: TE) => boolean
   ): boolean {
-    const pathString = this.getPathString(path)
+    const pathString = getPathString(path)
     return this.isActiveRecursive(pathString) && evaluation(path(this.form))
   }
 
@@ -96,7 +182,7 @@ class FormBuilder<T extends Form>
 
   public getStatus<Qt extends FormElement>(path: (x: T) => Qt) {
     const builder = this.getElementBuilder(path)
-    const pathStr = this.getPathString(path)
+    const pathStr = getPathString(path)
 
     return {
       required: builder._isRequired(this),
@@ -124,27 +210,8 @@ class FormBuilder<T extends Form>
     return this.isActiveRecursive(path, level + 1)
   }
 
-  private getPathString<Et extends FormElement>(path: (x: T) => Et) {
-    let str = path.toString()
-    str = str.substring(str.indexOf('.') + 1)
-
-    if (str.includes('\n')) {
-      str = str.substring(0, str.indexOf('\n'))
-    }
-
-    if (str.includes(';')) {
-      str = str.substring(0, str.indexOf(';'))
-    }
-
-    if (str.includes('}')) {
-      str = str.substring(0, str.indexOf('}'))
-    }
-
-    return str
-  }
-
   private getElementBuilder<Et extends FormElement>(path: (x: T) => Et) {
-    const pathStr = this.getPathString(path)
+    const pathStr = getPathString(path)
 
     let builder = <FormElementBuilder<T, Et>>this.questionBuilders[pathStr]
 
@@ -188,7 +255,7 @@ class FormBuilder<T extends Form>
         return true // this is the end
       }
     }
-    const pathStr = this.getPathString(path)
+    const pathStr = getPathString(path)
     setDeepValue(pathStr, value, this.form)
   }
 }
