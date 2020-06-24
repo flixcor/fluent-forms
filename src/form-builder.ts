@@ -3,23 +3,25 @@ import { getPathString } from './utilities'
 import {
   IFormElementBuilderInternal,
   FormElementBuilder,
+  IFormElementBuilder,
 } from './form-element-builder'
-import { RecurringGroupBuilder } from './recurring-groups'
+import {
+  IRecurringGroupBuilder,
+  RecurringGroupBuilder,
+} from './recurring-groups'
 
 export interface IFormBuilder<T extends Form> {
   setValue<Qt extends FormQuestion>(path: (x: T) => Qt, value: Qt): void
 
   getStatus<Qt extends FormElement>(path: (x: T) => Qt): IFormElementStatus
 
-  question<Qt extends FormQuestion>(
-    path: (x: T) => Qt
-  ): FormElementBuilder<T, Qt>
+  question<Qt extends FormQuestion>(path: (x: T) => Qt): IFormElementBuilder<T>
 
-  group<Gt extends FormGroup>(path: (x: T) => Gt): FormElementBuilder<T, Gt>
+  group<Gt extends FormGroup>(path: (x: T) => Gt): IFormElementBuilder<T>
 
   recurringGroup<Gt extends FormGroup>(
     path: (x: T) => Gt[]
-  ): RecurringGroupBuilder<T, Gt>
+  ): IRecurringGroupBuilder<Gt>
 }
 
 export interface IFormEvaluator<T extends Form> {
@@ -47,8 +49,9 @@ export class FormBuilder<T extends Form>
   }
   recurringGroup<Gt extends FormGroup>(
     path: (x: T) => Gt[]
-  ): RecurringGroupBuilder<T, Gt> {
-    throw new Error('Method not implemented.')
+  ): IRecurringGroupBuilder<Gt> {
+    //TODO: add to list of builders
+    return new RecurringGroupBuilder(path)
   }
 
   evaluate<TE extends FormElement>(
@@ -59,15 +62,21 @@ export class FormBuilder<T extends Form>
     return this.isActiveRecursive(pathString) && evaluation(path(this.form))
   }
 
-  public question<Qt extends FormQuestion>(path: (x: T) => Qt) {
+  public question<Qt extends FormQuestion>(
+    path: (x: T) => Qt
+  ): IFormElementBuilder<T> {
     return this.getElementBuilder(path)
   }
 
-  public group<Gt extends FormGroup>(path: (x: T) => Gt) {
+  public group<Gt extends FormGroup>(
+    path: (x: T) => Gt
+  ): IFormElementBuilder<T> {
     return this.getElementBuilder(path)
   }
 
-  public getStatus<Qt extends FormElement>(path: (x: T) => Qt) {
+  public getStatus<Qt extends FormElement>(
+    path: (x: T) => Qt
+  ): IFormElementStatus {
     const builder = this.getElementBuilder(path)
     const pathStr = getPathString(path)
 

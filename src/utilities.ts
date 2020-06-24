@@ -1,4 +1,4 @@
-export const getPathString = function (path: (x: any) => any) {
+export const getPathString = function (path: (x: any) => any): string {
   let str = path.toString()
   str = str.substring(str.indexOf('.') + 1)
 

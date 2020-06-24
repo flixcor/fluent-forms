@@ -9,10 +9,10 @@ export interface IFormElementBuilderInternal<TForm extends Form> {
 export interface IFormElementBuilder<TForm extends Form> {
   isRequired(
     func: (form: IFormEvaluator<TForm>) => boolean
-  ): IFormElementBuilderInternal<TForm>
+  ): IFormElementBuilder<TForm>
   isActive(
     func: (form: IFormEvaluator<TForm>) => boolean
-  ): IFormElementBuilderInternal<TForm>
+  ): IFormElementBuilder<TForm>
 }
 
 export class FormElementBuilder<
@@ -28,13 +28,15 @@ export class FormElementBuilder<
   }
 
   public isRequired(
-    func: (form: IFormEvaluator<TForm>) => boolean = () => true
-  ) {
+    func: (form: IFormEvaluator<TForm>) => boolean = (): boolean => true
+  ): IFormElementBuilder<TForm> {
     this._isRequired = func
     return this
   }
 
-  public isActive(func: (form: IFormEvaluator<TForm>) => boolean) {
+  public isActive(
+    func: (form: IFormEvaluator<TForm>) => boolean
+  ): IFormElementBuilder<TForm> {
     this._isActive = func
     return this
   }

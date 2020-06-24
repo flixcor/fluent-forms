@@ -1,17 +1,24 @@
 import { Form, FormElement, FormGroup, FormQuestion } from './types'
-import { IFormElementBuilder, FormElementBuilder } from './form-element-builder'
 import { IFormEvaluator } from './form-builder'
+import { getPathString } from './utilities'
+
+interface IGroupElementBuilderInternal<TForm extends FormGroup> {
+  _isRequired: (index: number, form: IFormEvaluator<TForm>) => boolean
+  _isActive: (index: number, form: IFormEvaluator<TForm>) => boolean
+}
 
 export class RecurringGroupBuilder<TForm extends Form, TGroup extends FormGroup>
   implements IRecurringGroupBuilder<TGroup> {
   path: (x: TForm) => TGroup[]
-  groupElementBuilders: Record<string, IFormElementBuilder<TGroup>> = {}
+  groupElementBuilders: Record<string, IGroupElementBuilder<TGroup>> = {}
 
   constructor(path: (x: TForm) => TGroup[]) {
     this.path = path
   }
 
-  public question<Qt extends FormQuestion>(path: (x: TGroup) => Qt) {
+  public question<Qt extends FormQuestion>(
+    path: (x: TGroup) => Qt
+  ): GroupElementBuilder<TGroup, Qt> {
     return this.getElementBuilder(path)
   }
 
@@ -31,35 +38,49 @@ export class RecurringGroupBuilder<TForm extends Form, TGroup extends FormGroup>
   }
 }
 
-class GroupElementBuilder<TForm extends FormGroup, TElement extends FormElement>
-  implements IFormElementBuilderInternal<TForm>, IFormElementBuilder<TForm> {
-  path: (x: TForm) => TElement
-  _isRequired: (index: number, form: IFormEvaluator<TForm>) => boolean = () =>
+class GroupElementBuilder<
+  TGroup extends FormGroup,
+  TElement extends FormElement
+>
+  implements
+    IGroupElementBuilderInternal<TGroup>,
+    IGroupElementBuilder<TGroup> {
+  path: (x: TGroup) => TElement
+  _isRequired: (index: number, form: IFormEvaluator<TGroup>) => boolean = () =>
     false
-  _isActive: (index: number, form: IFormEvaluator<TForm>) => boolean = () =>
+  _isActive: (index: number, form: IFormEvaluator<TGroup>) => boolean = () =>
     true
 
-  constructor(path: (x: TForm) => TElement) {
+  constructor(path: (x: TGroup) => TElement) {
     this.path = path
   }
 
   public isRequired(
-    func: (index: number, form: IFormEvaluator<TForm>) => boolean = () => true
+    func: (index: number, form: IFormEvaluator<TGroup>) => boolean = () => true
   ) {
     this._isRequired = func
     return this
   }
 
   public isActive(
-    func: (index: number, form: IFormEvaluator<TForm>) => boolean
+    func: (index: number, form: IFormEvaluator<TGroup>) => boolean
   ) {
     this._isActive = func
     return this
   }
 }
 
-export interface IRecurringGroupBuilder<T extends FormGroup> {
-  question<Qt extends FormQuestion>(
-    path: (x: T) => Qt
-  ): FormElementBuilder<T, Qt>
+export interface IRecurringGroupBuilder<TGroup extends FormGroup> {
+  question<TQuestion extends FormQuestion>(
+    path: (x: TGroup) => TQuestion
+  ): GroupElementBuilder<TGroup, TQuestion>
+}
+
+export interface IGroupElementBuilder<TForm extends FormGroup> {
+  isRequired(
+    func: (index: number, form: IFormEvaluator<TForm>) => boolean
+  ): IGroupElementBuilder<TForm>
+  isActive(
+    func: (index: number, form: IFormEvaluator<TForm>) => boolean
+  ): IGroupElementBuilder<TForm>
 }

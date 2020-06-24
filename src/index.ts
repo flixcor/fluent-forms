@@ -4,5 +4,5 @@ export { IFormBuilder } from './form-builder'
 export * from './types'
 
 export function createFormBuilder<T extends Form>(form: T): IFormBuilder<T> {
-  return <IFormBuilder<T>>new FormBuilder(form)
+  return new FormBuilder(form)
 }
