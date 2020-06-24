@@ -9,10 +9,10 @@ export interface IFormElementBuilderInternal<TForm extends Form> {
 
 export interface IFormElementBuilder<TForm extends Form> {
   isRequired(
-    func: (form: IFormEvaluator<TForm>) => boolean
+    func: (evaluator: IFormEvaluator<TForm>) => boolean
   ): IFormElementBuilder<TForm>
   isActive(
-    func: (form: IFormEvaluator<TForm>) => boolean
+    func: (evaluator: IFormEvaluator<TForm>) => boolean
   ): IFormElementBuilder<TForm>
 }
 

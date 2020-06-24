@@ -56,12 +56,11 @@ export function getBuilder(): IFormBuilder<IMyForm> {
       )
     )
 
-  builder
-    .recurringGroup((x) => x.recurringGroup)
-    .question((y) => y.question4)
-    .isRequired((i) => i === 0)
-
   builder.question((x) => x.group1.question3).isActive(() => true)
+
+  const recurringGroupBuilder = builder.recurringGroup((x) => x.recurringGroup)
+
+  recurringGroupBuilder.question((y) => y.question4).isRequired((i) => i === 0)
 
   return builder
 }

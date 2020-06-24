@@ -86,9 +86,9 @@ export interface IRecurringGroupBuilder<TGroup extends FormGroup> {
 
 export interface IGroupElementBuilder<TGroup extends FormGroup> {
   isRequired(
-    func: (index: number, form: IFormEvaluator<TGroup>) => boolean
+    func: (index: number, evaluator: IFormEvaluator<TGroup>) => boolean
   ): IGroupElementBuilder<TGroup>
   isActive(
-    func: (index: number, form: IFormEvaluator<TGroup>) => boolean
+    func: (index: number, evaluator: IFormEvaluator<TGroup>) => boolean
   ): IGroupElementBuilder<TGroup>
 }
