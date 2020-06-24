@@ -39,16 +39,10 @@ export class FormBuilder<T extends Form>
   implements IFormEvaluator<T>, IFormBuilder<T> {
   private form: T
 
-  private questionBuilders: Record<string, Builder<T>> = {}
+  private questionBuilders: Record<string, unknown> = {}
 
   constructor(form: T) {
     this.form = form
-  }
-  recurringGroup<Gt extends FormGroup>(
-    path: (x: T) => Gt[]
-  ): IRecurringGroupBuilder<Gt> {
-    //TODO: add to list of builders
-    return new RecurringGroupBuilder(path)
   }
 
   evaluate<TE extends FormElement>(
@@ -57,6 +51,12 @@ export class FormBuilder<T extends Form>
   ): boolean {
     const pathString = getPathString(path)
     return this.isActiveRecursive(pathString) && evaluation(path(this.form))
+  }
+
+  recurringGroup<Gt extends FormGroup>(
+    path: (x: T) => Gt[]
+  ): IRecurringGroupBuilder<Gt> {
+    return this.getRecurringGroupBuilder(path)
   }
 
   public question<Qt extends FormQuestion>(
