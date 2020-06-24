@@ -18,8 +18,6 @@ export const getPathString = function (path: (x: any) => any): string {
     str = str.substring(0, str.indexOf('}'))
   }
 
-  str = str.replaceAll('[', '.').replaceAll(']', '')
-
   return str
 }
 

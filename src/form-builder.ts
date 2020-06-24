@@ -85,6 +85,14 @@ export class FormBuilder<T extends Form>
     }
   }
 
+  public setValue<Qt extends FormQuestion>(
+    path: (x: T) => Qt,
+    value: Qt
+  ): void {
+    const pathStr = getPathString(path).replaceAll('[', '.').replaceAll(']', '')
+    set(this.form, pathStr, value)
+  }
+
   private isActiveRecursive(path: string, level = 1): boolean {
     const split = path.split('.')
 
@@ -128,13 +136,5 @@ export class FormBuilder<T extends Form>
     }
 
     return builder
-  }
-
-  public setValue<Qt extends FormQuestion>(
-    path: (x: T) => Qt,
-    value: Qt
-  ): void {
-    const pathStr = getPathString(path)
-    set(this.form, pathStr, value)
   }
 }
