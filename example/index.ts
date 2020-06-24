@@ -31,7 +31,7 @@ export function getBuilder(): IFormBuilder<IMyForm> {
 
   const builder = createFormBuilder(myForm)
 
-  builder.question((x) => x.question1).isRequired()
+  builder.question((x) => x.question1).isRequired(() => true)
 
   builder
     .question((x) => x.question2)
@@ -59,7 +59,7 @@ export function getBuilder(): IFormBuilder<IMyForm> {
   builder
     .recurringGroup((x) => x.recurringGroup)
     .question((y) => y.question4)
-    .isActive(() => false)
+    .isRequired((i) => i === 0)
 
   builder.question((x) => x.group1.question3).isActive(() => true)
 

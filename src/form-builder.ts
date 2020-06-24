@@ -1,10 +1,6 @@
-import { Form, FormQuestion, FormElement, FormGroup } from './types'
-import { getPathString } from './utilities'
-import {
-  IFormElementBuilderInternal,
-  FormElementBuilder,
-  IFormElementBuilder,
-} from './form-element-builder'
+import { Form, FormQuestion, FormElement, FormGroup, Builder } from './types'
+import { getPathString, isElementBuilder } from './utilities'
+import { FormElementBuilder, IFormElementBuilder } from './form-element-builder'
 import {
   IRecurringGroupBuilder,
   RecurringGroupBuilder,
@@ -42,7 +38,7 @@ export class FormBuilder<T extends Form>
   implements IFormEvaluator<T>, IFormBuilder<T> {
   private form: T
 
-  private questionBuilders: Record<string, IFormElementBuilderInternal<T>> = {}
+  private questionBuilders: Record<string, Builder<T>> = {}
 
   constructor(form: T) {
     this.form = form
@@ -99,7 +95,8 @@ export class FormBuilder<T extends Form>
 
     const builder = this.questionBuilders[currentPath]
 
-    if (builder && !builder._isActive(this)) {
+    //find a way to work around recurring groups
+    if (builder && isElementBuilder(builder) && !builder._isActive(this)) {
       return false
     }
 
