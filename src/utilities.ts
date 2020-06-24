@@ -1,4 +1,4 @@
-import { IGroupElementBuilderInternal } from './recurring-groups'
+import { IRecurringGroupBuilder } from './recurring-groups'
 import { FormGroup, Form } from './types'
 import { IFormElementBuilderInternal } from './form-element-builder'
 
@@ -23,14 +23,14 @@ export const getPathString = function (path: (x: any) => any): string {
   return str
 }
 
-export function isGroupBuilder<TGroup extends FormGroup, TForm extends Form>(
+export function isGroupBuilder(
   object: any
-): object is IGroupElementBuilderInternal<TGroup> {
-  return object.discriminator === 'two-arg'
+): object is IRecurringGroupBuilder<FormGroup> {
+  return object.discriminator === 'recurring'
 }
 
-export function isElementBuilder<TGroup extends FormGroup, TForm extends Form>(
+export function isElementBuilder<TForm extends Form>(
   object: any
-): object is IFormElementBuilderInternal<TGroup> {
-  return object.discriminator === 'one-arg'
+): object is IFormElementBuilderInternal<TForm> {
+  return object.discriminator === 'element'
 }

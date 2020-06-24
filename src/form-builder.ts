@@ -1,4 +1,4 @@
-import { Form, FormQuestion, FormElement, FormGroup, Builder } from './types'
+import { Form, FormQuestion, FormElement, FormGroup } from './types'
 import { getPathString, isElementBuilder } from './utilities'
 import { FormElementBuilder, IFormElementBuilder } from './form-element-builder'
 import {
@@ -97,7 +97,7 @@ export class FormBuilder<T extends Form>
     const builder = this.questionBuilders[currentPath]
 
     //find a way to work around recurring groups
-    if (builder && isElementBuilder(builder) && !builder._isActive(this)) {
+    if (builder && isElementBuilder<T>(builder) && !builder._isActive(this)) {
       return false
     }
 
@@ -111,6 +111,19 @@ export class FormBuilder<T extends Form>
 
     if (!builder) {
       builder = new FormElementBuilder<T, Et>(path)
+      this.questionBuilders[pathStr] = builder
+    }
+
+    return builder
+  }
+
+  private getRecurringGroupBuilder<Et extends FormGroup>(path: (x: T) => Et[]) {
+    const pathStr = getPathString(path)
+
+    let builder = <IRecurringGroupBuilder<Et>>this.questionBuilders[pathStr]
+
+    if (!builder) {
+      builder = new RecurringGroupBuilder<T, Et>(path)
       this.questionBuilders[pathStr] = builder
     }
 

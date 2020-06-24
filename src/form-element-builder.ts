@@ -2,7 +2,7 @@ import { IFormEvaluator } from './form-builder'
 import { Form, FormElement } from './types'
 
 export interface IFormElementBuilderInternal<TForm extends Form> {
-  discriminator: 'one-arg'
+  discriminator: 'element'
   _isRequired: (form: IFormEvaluator<TForm>) => boolean
   _isActive: (form: IFormEvaluator<TForm>) => boolean
 }
@@ -20,7 +20,7 @@ export class FormElementBuilder<
   TForm extends Form,
   TElement extends FormElement
 > implements IFormElementBuilderInternal<TForm>, IFormElementBuilder<TForm> {
-  discriminator: 'one-arg' = 'one-arg'
+  discriminator: 'element' = 'element'
   path: (x: TForm) => TElement
   _isRequired: (form: IFormEvaluator<TForm>) => boolean = () => false
   _isActive: (form: IFormEvaluator<TForm>) => boolean = () => true

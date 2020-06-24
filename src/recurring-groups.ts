@@ -3,13 +3,13 @@ import { IFormEvaluator } from './form-builder'
 import { getPathString } from './utilities'
 
 export interface IGroupElementBuilderInternal<TForm extends FormGroup> {
-  discriminator: 'two-arg'
   _isRequired: (index: number, form: IFormEvaluator<TForm>) => boolean
   _isActive: (index: number, form: IFormEvaluator<TForm>) => boolean
 }
 
 export class RecurringGroupBuilder<TForm extends Form, TGroup extends FormGroup>
   implements IRecurringGroupBuilder<TGroup> {
+  discriminator: 'recurring' = 'recurring'
   path: (x: TForm) => TGroup[]
   groupElementBuilders: Record<string, IGroupElementBuilder<TGroup>> = {}
 
@@ -18,6 +18,12 @@ export class RecurringGroupBuilder<TForm extends Form, TGroup extends FormGroup>
   }
 
   public question<Qt extends FormQuestion>(
+    path: (x: TGroup) => Qt
+  ): IGroupElementBuilder<TGroup> {
+    return this.getElementBuilder(path)
+  }
+
+  public group<Qt extends FormGroup>(
     path: (x: TGroup) => Qt
   ): IGroupElementBuilder<TGroup> {
     return this.getElementBuilder(path)
@@ -46,7 +52,6 @@ class GroupElementBuilder<
   implements
     IGroupElementBuilderInternal<TGroup>,
     IGroupElementBuilder<TGroup> {
-  discriminator: 'two-arg' = 'two-arg'
   path: (x: TGroup) => TElement
   _isRequired: (index: number, form: IFormEvaluator<TGroup>) => boolean = () =>
     false
@@ -73,6 +78,7 @@ class GroupElementBuilder<
 }
 
 export interface IRecurringGroupBuilder<TGroup extends FormGroup> {
+  discriminator: 'recurring'
   question<TQuestion extends FormQuestion>(
     path: (x: TGroup) => TQuestion
   ): IGroupElementBuilder<TGroup>
