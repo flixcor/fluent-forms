@@ -89,7 +89,7 @@ export class FormBuilder<T extends Form>
     path: (x: T) => Qt,
     value: Qt
   ): void {
-    const pathStr = getPathString(path).replaceAll('[', '.').replaceAll(']', '')
+    const pathStr = getPathString(path).replace(/\[/g, '.').replace(/\]/g, '')
     set(this.form, pathStr, value)
   }
 
@@ -131,7 +131,7 @@ export class FormBuilder<T extends Form>
     let builder = <IRecurringGroupBuilder<Et>>this.questionBuilders[pathStr]
 
     if (!builder) {
-      builder = new RecurringGroupBuilder<T, Et>(path)
+      builder = new RecurringGroupBuilder<T, Et>(() => path(this.form), pathStr)
       this.questionBuilders[pathStr] = builder
     }
 
