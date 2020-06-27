@@ -1,6 +1,7 @@
 import { Form, FormElement, FormGroup, FormQuestion } from './types'
 import { IFormEvaluator, IFormElementStatus } from './form-builder'
 import { getPathString } from './utilities'
+import set from 'set-value'
 
 export interface IGroupElementBuilderInternal<TForm extends FormGroup> {
   _isRequired: (index: number, form: IFormEvaluator<TForm>) => boolean
@@ -65,23 +66,35 @@ export class RecurringGroupBuilder<TForm extends Form, TGroup extends FormGroup>
     return builder
   }
 
-  public getStatus<Qt extends FormElement>(
+  public getStatus<Qt extends FormQuestion>(
     index: number,
     path: (x: TGroup) => Qt
   ): IFormElementStatus<Qt> {
     const builder = this.getElementBuilder(path)
     const pathStr = getPathString(path)
     const evaluator = new GroupEvaluator(index, this.getValue)
+    const set = (value: Qt) => this.setValue(index, path, value)
 
     return {
       required: builder._isRequired(index, evaluator),
-      active: builder._isRequired(index, evaluator),
+      active: builder._isActive(index, evaluator),
       value: path(this.getValue()[index]),
       path: `${this.path}[${index}].${pathStr}`,
+      set,
     }
   }
 
   public count = (): number => this.getValue().length
+
+  setValue<Qt extends FormQuestion>(
+    index: number,
+    path: (x: TGroup) => Qt,
+    value: Qt
+  ): void {
+    const formGroup = this.getValue()[index]
+    const pathStr = getPathString(path).replace(/\[/g, '.').replace(/\]/g, '')
+    set(formGroup, pathStr, value)
+  }
 }
 
 class GroupElementBuilder<
@@ -121,7 +134,7 @@ export interface IRecurringGroupBuilder<TGroup extends FormGroup> {
   question<TQuestion extends FormQuestion>(
     path: (x: TGroup) => TQuestion
   ): IGroupElementBuilder<TGroup>
-  getStatus<Qt extends FormElement>(
+  getStatus<Qt extends FormQuestion>(
     index: number,
     path: (x: TGroup) => Qt
   ): IFormElementStatus<Qt>

@@ -10,7 +10,7 @@ import set from 'set-value'
 export interface IFormBuilder<T extends Form> {
   setValue<Qt extends FormQuestion>(path: (x: T) => Qt, value: Qt): void
 
-  getStatus<Qt extends FormElement>(path: (x: T) => Qt): IFormElementStatus<Qt>
+  getStatus<Qt extends FormQuestion>(path: (x: T) => Qt): IFormElementStatus<Qt>
 
   question<Qt extends FormQuestion>(path: (x: T) => Qt): IFormElementBuilder<T>
 
@@ -33,6 +33,7 @@ export interface IFormElementStatus<T extends FormElement> {
   required: boolean
   value: T
   path: string
+  set: (value: T) => void
 }
 
 export class FormBuilder<T extends Form>
@@ -71,17 +72,19 @@ export class FormBuilder<T extends Form>
     return this.getElementBuilder(path)
   }
 
-  public getStatus<Qt extends FormElement>(
+  public getStatus<Qt extends FormQuestion>(
     path: (x: T) => Qt
   ): IFormElementStatus<Qt> {
     const builder = this.getElementBuilder(path)
     const pathStr = getPathString(path)
+    const set = (value: Qt) => this.setValue(path, value)
 
     return {
       required: builder._isRequired(this),
       active: this.isActiveRecursive(pathStr),
       value: path(this.form),
       path: pathStr,
+      set,
     }
   }
 
