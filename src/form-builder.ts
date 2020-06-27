@@ -1,6 +1,10 @@
-import { Form, FormQuestion, FormElement, FormGroup } from './types'
+import { Form, FormQuestion, FormElement, FormGroup, FormState } from './types'
 import { getPathString, isElementBuilder } from './utilities'
-import { FormElementBuilder, IFormElementBuilder } from './form-element-builder'
+import {
+  FormElementBuilder,
+  IFormElementBuilder,
+  FormElementBuilderV2,
+} from './form-element-builder'
 import {
   IRecurringGroupBuilder,
   RecurringGroupBuilder,
@@ -10,7 +14,9 @@ import set from 'set-value'
 export interface IFormBuilder<T extends Form> {
   setValue<Qt extends FormQuestion>(path: (x: T) => Qt, value: Qt): void
 
-  getStatus<Qt extends FormQuestion>(path: (x: T) => Qt): IFormElementStatus<Qt>
+  getStatus<Qt extends FormQuestion>(
+    path: (x: T) => Qt
+  ): IFormQuestionStatus<Qt>
 
   question<Qt extends FormQuestion>(path: (x: T) => Qt): IFormElementBuilder<T>
 
@@ -19,6 +25,16 @@ export interface IFormBuilder<T extends Form> {
   recurringGroup<Gt extends FormGroup>(
     path: (x: T) => Gt[]
   ): IRecurringGroupBuilder<Gt>
+
+  getState: () => FormState
+
+  getQuestionState<TQ extends FormQuestion>(
+    path: (form: T) => TQ
+  ): IFormQuestionStatus<TQ>
+
+  questionV2<TQ extends FormQuestion>(
+    path: (form: T) => TQ
+  ): IFormElementBuilder<T>
 }
 
 export interface IFormEvaluator<T extends Form> {
@@ -28,12 +44,16 @@ export interface IFormEvaluator<T extends Form> {
   ): boolean
 }
 
-export interface IFormElementStatus<T extends FormElement> {
+export interface IFormQuestionStatus<T extends FormQuestion>
+  extends IFormElementState {
+  value: T
+  set: (value: T) => void
+}
+
+export interface IFormElementState {
   active: boolean
   required: boolean
-  value: T
   path: string
-  set: (value: T) => void
 }
 
 export class FormBuilder<T extends Form>
@@ -41,10 +61,14 @@ export class FormBuilder<T extends Form>
   private form: T
 
   private questionBuilders: Record<string, unknown> = {}
+  private state: FormState
 
   constructor(form: T) {
     this.form = form
+    this.state = this.initializeFormState(form)
   }
+
+  public getState: () => FormState = () => this.state
 
   evaluate<TE extends FormElement>(
     path: (x: T) => TE,
@@ -74,7 +98,7 @@ export class FormBuilder<T extends Form>
 
   public getStatus<Qt extends FormQuestion>(
     path: (x: T) => Qt
-  ): IFormElementStatus<Qt> {
+  ): IFormQuestionStatus<Qt> {
     const builder = this.getElementBuilder(path)
     const pathStr = getPathString(path)
     const set = (value: Qt) => this.setValue(path, value)
@@ -140,4 +164,88 @@ export class FormBuilder<T extends Form>
 
     return builder
   }
+
+  private buildStandardRecord(path: string): FormStateObject<T> {
+    return {
+      '@active': true,
+      '@required': false,
+      '@activeFunc': (): boolean => true,
+      '@path': path,
+      '@requiredFunc': (): boolean => false,
+    }
+  }
+
+  setQuestionProps(record: FormStateObject<T>): void {
+    const safePath = record['@path'].replace(/\[/g, '.').replace(/\]/g, '')
+    record['@set'] = (value: FormQuestion) => {
+      set(this.form, safePath, value)
+    }
+  }
+
+  public getQuestionState<TQ extends FormQuestion>(
+    path: (form: T) => TQ
+  ): IFormQuestionStatus<TQ> {
+    const fakedPath = <(state: any) => FormStateObject<T>>(<unknown>path)
+    const obj = fakedPath(this.state)
+    const value = path(this.form)
+
+    return {
+      value,
+      active: obj['@active'],
+      required: obj['@required'],
+      path: obj['@path'],
+      set: <(value: TQ) => void>obj['@set'],
+    }
+  }
+
+  public questionV2<TQ extends FormQuestion>(
+    path: (form: T) => TQ
+  ): IFormElementBuilder<T> {
+    const fakedPath = <(state: FormState) => FormStateObject<T>>(<unknown>path)
+    const obj = fakedPath(this.state)
+
+    return new FormElementBuilderV2(obj, this)
+  }
+
+  private initializeFormState(form: any, path = ''): any {
+    const ret = this.buildStandardRecord(path)
+    const dottedPath = path ? path + '.' : ''
+
+    for (const key in form) {
+      if (form.hasOwnProperty(key)) {
+        const nextPath = dottedPath + key
+        const element = form[key]
+        if (Array.isArray(element)) {
+          if (
+            !element.length ||
+            ['string', 'number'].includes(typeof element[0])
+          ) {
+            const innerElement = this.buildStandardRecord(nextPath)
+            this.setQuestionProps(innerElement)
+            ret[key] = innerElement
+          } else {
+            ret[key] = element.map((x, i) =>
+              this.initializeFormState(x, `${nextPath}[${i}]`)
+            )
+          }
+        } else if (['string', 'number'].includes(typeof element)) {
+          const innerElement = this.buildStandardRecord(nextPath)
+          this.setQuestionProps(innerElement)
+          ret[key] = innerElement
+        } else if (typeof element === 'object') {
+          ret[key] = this.initializeFormState(element, nextPath)
+        }
+      }
+    }
+    return ret
+  }
+}
+
+export type FormStateObject<T extends Form> = {
+  [key: string]: unknown
+  '@active': boolean
+  '@required': boolean
+  '@path': string
+  '@requiredFunc': (evaluator: IFormEvaluator<T>) => boolean
+  '@activeFunc': (evaluator: IFormEvaluator<T>) => boolean
 }

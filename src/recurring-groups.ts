@@ -1,5 +1,5 @@
 import { Form, FormElement, FormGroup, FormQuestion } from './types'
-import { IFormEvaluator, IFormElementStatus } from './form-builder'
+import { IFormEvaluator, IFormQuestionStatus } from './form-builder'
 import { getPathString } from './utilities'
 import set from 'set-value'
 
@@ -29,7 +29,6 @@ class GroupEvaluator<TGroup extends FormGroup>
 
 export class RecurringGroupBuilder<TForm extends Form, TGroup extends FormGroup>
   implements IRecurringGroupBuilder<TGroup> {
-  discriminator: 'recurring' = 'recurring'
   getValue: () => TGroup[]
   groupElementBuilders: Record<string, IGroupElementBuilder<TGroup>> = {}
   path: string
@@ -69,7 +68,7 @@ export class RecurringGroupBuilder<TForm extends Form, TGroup extends FormGroup>
   public getStatus<Qt extends FormQuestion>(
     index: number,
     path: (x: TGroup) => Qt
-  ): IFormElementStatus<Qt> {
+  ): IFormQuestionStatus<Qt> {
     const builder = this.getElementBuilder(path)
     const pathStr = getPathString(path)
     const evaluator = new GroupEvaluator(index, this.getValue)
@@ -130,14 +129,13 @@ class GroupElementBuilder<
 }
 
 export interface IRecurringGroupBuilder<TGroup extends FormGroup> {
-  discriminator: 'recurring'
   question<TQuestion extends FormQuestion>(
     path: (x: TGroup) => TQuestion
   ): IGroupElementBuilder<TGroup>
   getStatus<Qt extends FormQuestion>(
     index: number,
     path: (x: TGroup) => Qt
-  ): IFormElementStatus<Qt>
+  ): IFormQuestionStatus<Qt>
   count(): number
 }
 

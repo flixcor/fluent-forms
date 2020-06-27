@@ -1,8 +1,7 @@
-import { IFormEvaluator } from './form-builder'
+import { IFormEvaluator, FormStateObject } from './form-builder'
 import { Form, FormElement } from './types'
 
 export interface IFormElementBuilderInternal<TForm extends Form> {
-  discriminator: 'element'
   _isRequired: (form: IFormEvaluator<TForm>) => boolean
   _isActive: (form: IFormEvaluator<TForm>) => boolean
 }
@@ -20,7 +19,6 @@ export class FormElementBuilder<
   TForm extends Form,
   TElement extends FormElement
 > implements IFormElementBuilderInternal<TForm>, IFormElementBuilder<TForm> {
-  discriminator: 'element' = 'element'
   path: (x: TForm) => TElement
   _isRequired: (form: IFormEvaluator<TForm>) => boolean = () => false
   _isActive: (form: IFormEvaluator<TForm>) => boolean = () => true
@@ -40,6 +38,33 @@ export class FormElementBuilder<
     func: (form: IFormEvaluator<TForm>) => boolean
   ): IFormElementBuilder<TForm> {
     this._isActive = func
+    return this
+  }
+}
+
+export class FormElementBuilderV2<TForm extends Form>
+  implements IFormElementBuilder<TForm> {
+  state: FormStateObject<TForm>
+  evaluator: IFormEvaluator<TForm>
+
+  constructor(state: FormStateObject<TForm>, evaluator: IFormEvaluator<TForm>) {
+    this.state = state
+    this.evaluator = evaluator
+  }
+
+  public isRequired(
+    func: (form: IFormEvaluator<TForm>) => boolean = (): boolean => true
+  ): IFormElementBuilder<TForm> {
+    this.state['@requiredFunc'] = func
+    this.state['@required'] = func(this.evaluator)
+    return this
+  }
+
+  public isActive(
+    func: (form: IFormEvaluator<TForm>) => boolean
+  ): IFormElementBuilder<TForm> {
+    this.state['@activeFunc'] = func
+    this.state['@active'] = func(this.evaluator)
     return this
   }
 }
