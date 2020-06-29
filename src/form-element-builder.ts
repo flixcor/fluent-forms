@@ -55,16 +55,16 @@ export class FormElementBuilderV2<TForm extends Form>
   public isRequired(
     func: (form: IFormEvaluator<TForm>) => boolean = (): boolean => true
   ): IFormElementBuilder<TForm> {
-    this.state['@requiredFunc'] = func
-    this.state['@required'] = func(this.evaluator)
+    this.state.requiredFunc = func
+    this.state.required = func(this.evaluator)
     return this
   }
 
   public isActive(
     func: (form: IFormEvaluator<TForm>) => boolean
   ): IFormElementBuilder<TForm> {
-    this.state['@activeFunc'] = func
-    this.state['@active'] = func(this.evaluator)
+    this.state.activeFunc = func
+    this.state.active = func(this.evaluator)
     return this
   }
 }
