@@ -69,6 +69,19 @@ export class FormBuilder<T extends Form> {
         return [key, state]
       }
 
+      if (Array.isArray(value) && value.length) {
+        const asGroup = <FormGroup[]>value
+        const sub = asGroup.map((x, i) =>
+          this.initializeFormState(
+            <FormGroup>x,
+            `${nextPath}[${i}]`,
+            root,
+            false
+          )
+        )
+        return [key, sub]
+      }
+
       const sub = this.initializeFormState(
         <FormGroup>value,
         nextPath,
