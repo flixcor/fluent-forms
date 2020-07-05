@@ -41,27 +41,25 @@ export function getBuilder(): FormState<IMyForm> {
   const builder = createFormBuilder(myForm)
   const configurator = builder.getConfigurator()
 
-  configurator.question1.isRequired(() => true)
+  configurator.question1.$isRequired(() => true)
 
   configurator.question2
-    .isActive((form) => {
-      const { value, isActive } = form.question1
-      return isActive && value > 3
+    .$isActive((form) => {
+      const { $value, $isActive } = form.question1
+      return $isActive && $value > 3
     })
-    .isRequired(() => false)
+    .$isRequired(() => false)
 
-  configurator.group1.$config.isActive((form) => {
-    const { value, isActive } = form.question1
-    return isActive && value <= 3
+  configurator.group1.$isActive((form) => {
+    const { $value, $isActive } = form.question1
+    return $isActive && $value <= 3
   })
 
-  configurator.group1.question3.isActive(() => true)
+  configurator.group1.question3.$isActive(() => true)
 
-  configurator.recurringGroup.question4.isRequired((_, i) => i === 0)
+  configurator.recurringGroup.question4.$isRequired((_, i) => i === 0)
 
   const state = builder.getState()
-
-  state.group1.question3
 
   return state
 }

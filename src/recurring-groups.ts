@@ -17,7 +17,7 @@ export class GroupElementBuilder<TGroup extends FormGroup>
     this.path = path
   }
 
-  public isRequired(
+  public $isRequired(
     func: (form: FormState<TGroup>, index: number) => boolean = (): boolean =>
       true
   ): IGroupElementBuilder<TGroup> {
@@ -25,7 +25,7 @@ export class GroupElementBuilder<TGroup extends FormGroup>
     return this
   }
 
-  public isActive(
+  public $isActive(
     func: (form: FormState<TGroup>, index: number) => boolean
   ): IGroupElementBuilder<TGroup> {
     this._isActive = func
@@ -34,10 +34,10 @@ export class GroupElementBuilder<TGroup extends FormGroup>
 }
 
 export interface IGroupElementBuilder<TGroup extends FormGroup> {
-  isRequired(
+  $isRequired(
     func: (form: FormState<TGroup>, index: number) => boolean
   ): IGroupElementBuilder<TGroup>
-  isActive(
+  $isActive(
     func: (form: FormState<TGroup>, index: number) => boolean
   ): IGroupElementBuilder<TGroup>
 }

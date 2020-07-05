@@ -6,11 +6,7 @@ import {
   FormState,
   FormConfig,
 } from './types'
-import {
-  IFormElementBuilder,
-  IFormElementBuilderInternal,
-  FormElementBuilder,
-} from './form-element-builder'
+import { IFormElementBuilder, FormElementBuilder } from './form-element-builder'
 import { IGroupElementBuilder, GroupElementBuilder } from './recurring-groups'
 import set from 'set-value'
 import get from 'get-value'
@@ -97,8 +93,8 @@ export class FormBuilder<T extends Form> {
       path,
       root
     )
-    const withState = [...entries, ['$state', state]]
-    const ret = Object.fromEntries(withState)
+    const ret = Object.fromEntries(entries)
+    Object.assign(ret, state)
 
     if (isRoot) {
       Object.assign(root, ret)
@@ -116,7 +112,8 @@ export type GroupState<T extends Form, I extends FormGroup> = {
     : I[key] extends FormQuestion
     ? IQuestionState<I[key]>
     : never
-} & { $state: FormStateObject<T, T> }
+} &
+  IFormStateObject
 
 type RecurringConfigurator<I extends FormGroup[]> = {
   [key in keyof I[0]]: I[0][key] extends FormGroup[]
@@ -125,15 +122,7 @@ type RecurringConfigurator<I extends FormGroup[]> = {
     ? IGroupElementBuilder<I[0]>
     : never
 } &
-  HasGroupConfig<I[0]>
-
-export type HasRegularConfig<T extends Form> = {
-  $config: IFormElementBuilder<T>
-}
-
-export type HasGroupConfig<T extends FormGroup> = {
-  $config: IGroupElementBuilder<T>
-}
+  IGroupElementBuilder<I[0]>
 
 export type GroupConfiguratorEquivalent<T extends Form, I extends FormGroup> = {
   [key in keyof I]: I[key] extends FormGroup
@@ -144,7 +133,7 @@ export type GroupConfiguratorEquivalent<T extends Form, I extends FormGroup> = {
     ? IFormElementBuilder<T>
     : never
 } &
-  HasRegularConfig<T>
+  IFormElementBuilder<T>
 
 export interface IArrayOperations<T extends FormGroup> {
   append: (group: T) => void
@@ -154,7 +143,7 @@ export interface IArrayOperations<T extends FormGroup> {
 
 export interface IQuestionState<T extends FormElement>
   extends IFormStateObject {
-  value: T
+  $value: T
 }
 
 function isQuestion(unknown: unknown): boolean {
@@ -209,9 +198,9 @@ export function buildConfig<TForm extends Form, TGroup extends FormGroup>(
 }
 
 export interface IFormStateObject {
-  readonly isActive: boolean
-  readonly isRequired: boolean
-  readonly path: string
+  readonly $isActive: boolean
+  readonly $isRequired: boolean
+  readonly $path: string
 }
 
 function getConfigSafe<T extends Form>(state: FormConfig<T>, path: string) {
@@ -224,7 +213,7 @@ function getConfigSafe<T extends Form>(state: FormConfig<T>, path: string) {
 class FormStateObject<T extends Form, I extends FormElement>
   implements IQuestionState<I> {
   private _config: FormConfig<T>
-  readonly path: string
+  readonly $path: string
   private _form: T
   private _root: GroupState<T, T>
 
@@ -236,12 +225,12 @@ class FormStateObject<T extends Form, I extends FormElement>
   ) {
     this._form = form
     this._config = config
-    this.path = path
+    this.$path = path
     this._root = root
   }
 
-  get isActive(): boolean {
-    const config = getConfigSafe(this._config, this.path)
+  get $isActive(): boolean {
+    const config = getConfigSafe(this._config, this.$path)
     return (
       !config ||
       typeof config._isActive !== 'function' ||
@@ -249,8 +238,8 @@ class FormStateObject<T extends Form, I extends FormElement>
     )
   }
 
-  get isRequired(): boolean {
-    const config = getConfigSafe(this._config, this.path)
+  get $isRequired(): boolean {
+    const config = getConfigSafe(this._config, this.$path)
     return (
       config &&
       typeof config._isActive !== 'function' &&
@@ -258,11 +247,11 @@ class FormStateObject<T extends Form, I extends FormElement>
     )
   }
 
-  get value(): I {
-    return get(this._form, this.path)
+  get $value(): I {
+    return get(this._form, this.$path)
   }
 
-  set value(value: I) {
-    set(this._form, this.path, value)
+  set $value(value: I) {
+    set(this._form, this.$path, value)
   }
 }
