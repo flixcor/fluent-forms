@@ -11,7 +11,11 @@ import {
   FormElementBuilder,
   IFormElementBuilderInternal,
 } from './form-element-builder'
-import { IGroupElementBuilder, GroupElementBuilder } from './recurring-groups'
+import {
+  IGroupElementBuilder,
+  GroupElementBuilder,
+  IGroupElementBuilderInternal,
+} from './recurring-groups'
 import set from 'set-value'
 import get from 'get-value'
 
@@ -40,19 +44,29 @@ export class FormBuilder<T extends Form> implements IFormBuilder<T> {
     form: I,
     path = '',
     root: any = {},
-    isRoot = true
+    isRoot = true,
+    index: number | undefined = undefined
   ): GroupState<T, I> {
     const dottedPath = path ? path + '.' : ''
     const entries = Object.entries(form).map(([key, value]) => {
       const nextPath = dottedPath + key
 
       if (isQuestion(value)) {
-        const state = new FormStateObject<T, typeof value>(
-          this.form,
-          this._configurator,
-          nextPath,
-          root
-        )
+        const state =
+          typeof index === 'number'
+            ? new RecurringGroupStateObject<T, typeof value>(
+                this.form,
+                this._configurator,
+                nextPath,
+                root,
+                index
+              )
+            : new FormStateObject<T, typeof value>(
+                this.form,
+                this._configurator,
+                nextPath,
+                root
+              )
         return [key, state]
       }
 
@@ -63,7 +77,8 @@ export class FormBuilder<T extends Form> implements IFormBuilder<T> {
             <FormGroup>x,
             `${nextPath}[${i}]`,
             root,
-            false
+            false,
+            i
           )
         )
         return [key, sub]
@@ -78,12 +93,16 @@ export class FormBuilder<T extends Form> implements IFormBuilder<T> {
       return [key, sub]
     })
 
-    const ret = new FormStateObject<T, I>(
-      this.form,
-      this._configurator,
-      path,
-      root
-    )
+    const ret =
+      typeof index === 'number'
+        ? new RecurringGroupStateObject<T, I>(
+            this.form,
+            this._configurator,
+            path,
+            root,
+            index
+          )
+        : new FormStateObject<T, I>(this.form, this._configurator, path, root)
 
     const other = Object.fromEntries(entries)
     Object.assign(ret, other)
@@ -196,7 +215,11 @@ export interface IFormStateObject {
 
 function getParentPath(path: string): string | undefined {
   const split = path.split('.')
-  if (split.length > 1) {
+  if (!isNaN(Number.parseInt(split[split.length - 1]))) {
+    if (split.length > 2) {
+      return split.slice(0, -2).join('.')
+    }
+  } else if (split.length > 1) {
     return split.slice(0, -1).join('.')
   }
 }
@@ -208,6 +231,7 @@ class FormStateObject<T extends Form, I extends FormElement>
   private _root: GroupState<T, T>
   private _ownConfig: IFormElementBuilderInternal<T>
   private _parentPath: string | undefined
+  private _safePath: string
 
   constructor(
     form: T,
@@ -215,10 +239,13 @@ class FormStateObject<T extends Form, I extends FormElement>
     path: string,
     root: FormState<T>
   ) {
+    const safePath = path.replace(/\[/g, '.').replace(/\]/g, '')
+
     this._form = form
     this.$path = path
+    this._safePath = safePath
     this._root = root
-    const safePath = path.replace(/\[/g, '.').replace(/\]/g, '')
+    
 
     this._ownConfig = get(config, safePath)
     this._parentPath = getParentPath(safePath)
@@ -238,7 +265,97 @@ class FormStateObject<T extends Form, I extends FormElement>
     return (
       config &&
       typeof config._isRequired === 'function' &&
-      config._isActive(this._root)
+      config._isRequired(this._root)
+    )
+  }
+
+  private _parentIsActive(): boolean {
+    if (typeof this._parentPath === 'undefined') {
+      return true
+    }
+    const parent = get(this._root, this._parentPath)
+
+    if (!parent) {
+      return true
+    }
+
+    return parent.$isActive
+  }
+
+  private _parentIsRequired(): boolean {
+    if (typeof this._parentPath === 'undefined') {
+      return false
+    }
+    const parent = get(this._root, this._parentPath)
+
+    if (!parent) {
+      return false
+    }
+
+    return parent.$isRequired
+  }
+
+  get $isActive(): boolean {
+    return this._parentIsActive() && this._selfIsActive()
+  }
+
+  get $isRequired(): boolean {
+    return this._parentIsRequired() || this._selfIsRequired()
+  }
+
+  get $value(): I {
+    return get(this._form, this._safePath)
+  }
+
+  set $value(value: I) {
+    set(this._form, this._safePath, value)
+  }
+}
+
+class RecurringGroupStateObject<T extends Form, I extends FormElement>
+  implements IQuestionState<I> {
+  readonly $path: string
+  private _form: T
+  private _root: GroupState<T, T>
+  private _ownConfig: IGroupElementBuilderInternal<T>
+  private _parentPath: string | undefined
+  private _index: number
+  private _safePath: string
+
+  constructor(
+    form: T,
+    config: FormConfig<T>,
+    path: string,
+    root: FormState<T>,
+    index: number
+  ) {
+    const safePath = path.replace(/\[/g, '.').replace(/\]/g, '')
+    const configPath = path.replace(/\[[0-9]+\]/g, '')
+
+    this._index = index
+    this._form = form
+    this.$path = path
+    this._root = root
+    this._safePath = safePath
+    this._ownConfig = get(config, configPath)
+    this._parentPath = getParentPath(safePath)
+  }
+
+  private _selfIsActive(): boolean {
+    const config = this._ownConfig
+    return (
+      !config ||
+      typeof config._isActive !== 'function' ||
+      config._isActive(this._root, this._index)
+    )
+  }
+
+  private _selfIsRequired(): boolean {
+    const config = this._ownConfig
+    return (
+      config &&
+      typeof config._isRequired === 'function' &&
+      config._isRequired(this._root, this._index)
     )
   }
 
@@ -265,7 +382,7 @@ class FormStateObject<T extends Form, I extends FormElement>
       return false
     }
 
-    return parent?.$isActive
+    return parent?.$isRequired
   }
 
   get $isActive(): boolean {
@@ -277,10 +394,10 @@ class FormStateObject<T extends Form, I extends FormElement>
   }
 
   get $value(): I {
-    return get(this._form, this.$path)
+    return get(this._form, this._safePath)
   }
 
   set $value(value: I) {
-    set(this._form, this.$path, value)
+    set(this._form, this._safePath, value)
   }
 }
