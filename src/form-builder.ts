@@ -155,6 +155,7 @@ export interface IArrayOperations<T extends FormGroup> {
 export interface IQuestionState<T extends FormElement>
   extends IFormStateObject {
   $value: T
+  $isActiveAnd: (evaluation: (value: T) => boolean) => boolean
 }
 
 function isQuestion(unknown: unknown): boolean {
@@ -245,7 +246,6 @@ class FormStateObject<T extends Form, I extends FormElement>
     this.$path = path
     this._safePath = safePath
     this._root = root
-    
 
     this._ownConfig = get(config, safePath)
     this._parentPath = getParentPath(safePath)
@@ -309,6 +309,10 @@ class FormStateObject<T extends Form, I extends FormElement>
 
   set $value(value: I) {
     set(this._form, this._safePath, value)
+  }
+
+  public $isActiveAnd(evaluation: (value: I) => boolean): boolean {
+    return this.$isActive && evaluation(this.$value)
   }
 }
 
@@ -399,5 +403,9 @@ class RecurringGroupStateObject<T extends Form, I extends FormElement>
 
   set $value(value: I) {
     set(this._form, this._safePath, value)
+  }
+
+  public $isActiveAnd(evaluation: (value: I) => boolean): boolean {
+    return this.$isActive && evaluation(this.$value)
   }
 }

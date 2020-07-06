@@ -6,10 +6,10 @@ export interface IFormElementBuilderInternal<TForm extends Form> {
 }
 
 export interface IFormElementBuilder<TForm extends Form> {
-  $isRequired(
+  $isRequiredWhen(
     func: (form: FormState<TForm>) => boolean
   ): IFormElementBuilder<TForm>
-  $isActive(
+  $isActiveWhen(
     func: (form: FormState<TForm>) => boolean
   ): IFormElementBuilder<TForm>
 }
@@ -24,14 +24,14 @@ export class FormElementBuilder<TForm extends Form>
     this.$path = path
   }
 
-  public $isRequired(
+  public $isRequiredWhen(
     func: (form: FormState<TForm>) => boolean = (): boolean => true
   ): IFormElementBuilder<TForm> {
     this._isRequired = func
     return this
   }
 
-  public $isActive(
+  public $isActiveWhen(
     func: (form: FormState<TForm>) => boolean
   ): IFormElementBuilder<TForm> {
     this._isActive = func
