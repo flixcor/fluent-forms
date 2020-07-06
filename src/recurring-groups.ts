@@ -9,12 +9,12 @@ export class GroupElementBuilder<TGroup extends FormGroup>
   implements
     IGroupElementBuilderInternal<TGroup>,
     IGroupElementBuilder<TGroup> {
-  path: string
+  $path: string
   _isRequired: (form: FormState<TGroup>, index: number) => boolean = () => false
   _isActive: (form: FormState<TGroup>, index: number) => boolean = () => true
 
   constructor(path: string) {
-    this.path = path
+    this.$path = path
   }
 
   public $isRequired(

@@ -16,12 +16,12 @@ export interface IFormElementBuilder<TForm extends Form> {
 
 export class FormElementBuilder<TForm extends Form>
   implements IFormElementBuilderInternal<TForm>, IFormElementBuilder<TForm> {
-  path: string
+  $path: string
   _isRequired: (form: FormState<TForm>) => boolean = () => false
   _isActive: (form: FormState<TForm>) => boolean = () => true
 
   constructor(path: string) {
-    this.path = path
+    this.$path = path
   }
 
   public $isRequired(

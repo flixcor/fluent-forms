@@ -6,7 +6,11 @@ import {
   FormState,
   FormConfig,
 } from './types'
-import { IFormElementBuilder, FormElementBuilder } from './form-element-builder'
+import {
+  IFormElementBuilder,
+  FormElementBuilder,
+  IFormElementBuilderInternal,
+} from './form-element-builder'
 import { IGroupElementBuilder, GroupElementBuilder } from './recurring-groups'
 import set from 'set-value'
 import get from 'get-value'
@@ -16,20 +20,7 @@ export interface IFormBuilder<T extends Form> {
   getConfigurator: () => FormConfig<T>
 }
 
-export interface IFormEvaluator<T extends Form> {
-  evaluate<TE extends FormElement>(
-    path: (x: T) => TE,
-    evaluation: (x: TE) => boolean
-  ): boolean
-}
-
-export interface IFormElementState {
-  active: boolean
-  required: boolean
-  path: string
-}
-
-export class FormBuilder<T extends Form> {
+export class FormBuilder<T extends Form> implements IFormBuilder<T> {
   private form: T
 
   private _configurator: GroupConfiguratorEquivalent<T, T>
@@ -87,20 +78,21 @@ export class FormBuilder<T extends Form> {
       return [key, sub]
     })
 
-    const state = new FormStateObject<T, I>(
+    const ret = new FormStateObject<T, I>(
       this.form,
       this._configurator,
       path,
       root
     )
-    const ret = Object.fromEntries(entries)
-    Object.assign(ret, state)
+
+    const other = Object.fromEntries(entries)
+    Object.assign(ret, other)
 
     if (isRoot) {
       Object.assign(root, ret)
     }
 
-    return ret
+    return <any>ret
   }
 }
 
@@ -188,13 +180,12 @@ export function buildConfig<TForm extends Form, TGroup extends FormGroup>(
     return [key, sub]
   })
 
-  const config = isRecurring
+  const ret = isRecurring
     ? new GroupElementBuilder(path)
     : new FormElementBuilder(path)
-
-  const withConfig = [...entries, ['$config', config]]
-  const ret = Object.fromEntries(withConfig)
-  return ret
+  const other = Object.fromEntries(entries)
+  Object.assign(ret, other)
+  return <any>ret
 }
 
 export interface IFormStateObject {
@@ -203,19 +194,20 @@ export interface IFormStateObject {
   readonly $path: string
 }
 
-function getConfigSafe<T extends Form>(state: FormConfig<T>, path: string) {
-  if (!state || !path) return
-  const obj = get(state, path)
-  if (obj && obj.$config) return obj.$config
-  return obj
+function getParentPath(path: string): string | undefined {
+  const split = path.split('.')
+  if (split.length > 1) {
+    return split.slice(0, -1).join('.')
+  }
 }
 
 class FormStateObject<T extends Form, I extends FormElement>
   implements IQuestionState<I> {
-  private _config: FormConfig<T>
   readonly $path: string
   private _form: T
   private _root: GroupState<T, T>
+  private _ownConfig: IFormElementBuilderInternal<T>
+  private _parentPath: string | undefined
 
   constructor(
     form: T,
@@ -224,13 +216,16 @@ class FormStateObject<T extends Form, I extends FormElement>
     root: FormState<T>
   ) {
     this._form = form
-    this._config = config
     this.$path = path
     this._root = root
+    const safePath = path.replace(/\[/g, '.').replace(/\]/g, '')
+
+    this._ownConfig = get(config, safePath)
+    this._parentPath = getParentPath(safePath)
   }
 
-  get $isActive(): boolean {
-    const config = getConfigSafe(this._config, this.$path)
+  private _selfIsActive(): boolean {
+    const config = this._ownConfig
     return (
       !config ||
       typeof config._isActive !== 'function' ||
@@ -238,13 +233,47 @@ class FormStateObject<T extends Form, I extends FormElement>
     )
   }
 
-  get $isRequired(): boolean {
-    const config = getConfigSafe(this._config, this.$path)
+  private _selfIsRequired(): boolean {
+    const config = this._ownConfig
     return (
       config &&
-      typeof config._isActive !== 'function' &&
-      config._isRequired(this._root)
+      typeof config._isRequired === 'function' &&
+      config._isActive(this._root)
     )
+  }
+
+  private _parentIsActive(): boolean {
+    if (typeof this._parentPath === 'undefined') {
+      return true
+    }
+    const parent = get(this._root, this._parentPath)
+
+    if (!parent) {
+      return true
+    }
+
+    return parent?.$isActive
+  }
+
+  private _parentIsRequired(): boolean {
+    if (typeof this._parentPath === 'undefined') {
+      return false
+    }
+    const parent = get(this._root, this._parentPath)
+
+    if (!parent) {
+      return false
+    }
+
+    return parent?.$isActive
+  }
+
+  get $isActive(): boolean {
+    return this._parentIsActive() && this._selfIsActive()
+  }
+
+  get $isRequired(): boolean {
+    return this._parentIsRequired() || this._selfIsRequired()
   }
 
   get $value(): I {
