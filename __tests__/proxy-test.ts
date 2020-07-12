@@ -33,6 +33,9 @@ test('proxy test', () => {
   expect((<any>proxy.sub.numQ).$value).toBe(numQ)
   expect((<any>proxy.arrQ).$path).toBe('arrQ')
   expect((<any>proxy.arrQ).$value).toBe(arrQ)
+  expect((<any>proxy.recG).$path).toBe('recG')
+  expect((<any>proxy.recG[0].strQ).$value).toBe(strQ)
+  expect((<any>proxy.recG[0].strQ).$path).toBe('recG.0.strQ')
   ;(<any>proxy.sub.numQ).$value = newVal
   expect(obj.sub.numQ).toBe(newVal)
 })
