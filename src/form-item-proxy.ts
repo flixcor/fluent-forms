@@ -1,7 +1,7 @@
 import set from 'set-value'
 import get from 'get-value'
 
-type boolFunc = () => boolean
+type boolFunc<T> = (arg: T) => boolean
 
 function copy<T extends Record<any, any>>(obj: T): T {
   const ret: Record<any, any> = {}
@@ -12,8 +12,8 @@ function copy<T extends Record<any, any>>(obj: T): T {
 export function createProxy<T extends Record<any, any>>(
   obj: T,
   path: any[] = [],
-  requiredFuncs = new Map<string, boolFunc>(),
-  activeFuncs = new Map<string, boolFunc>(),
+  requiredFuncs = new Map<string, () => boolean>(),
+  activeFuncs = new Map<string, () => boolean>(),
   root = obj
 ): T & dollars<T> {
   const ret = new Proxy(<any>obj, {
@@ -27,12 +27,12 @@ export function createProxy<T extends Record<any, any>>(
         return get(root, currentPathString)
       }
       if (key === '$isRequiredWhen')
-        return (ding: () => boolean) => {
-          requiredFuncs.set(currentPathString, ding)
+        return (ding: boolFunc<T>) => {
+          requiredFuncs.set(currentPathString, () => ding(root))
         }
       if (key === '$isActiveWhen')
-        return (ding: () => boolean) => {
-          activeFuncs.set(currentPathString, ding)
+        return (ding: boolFunc<T>) => {
+          activeFuncs.set(currentPathString, () => ding(root))
         }
       if (key === '$isRequired') {
         let func = requiredFuncs.get(currentPathString)
@@ -84,9 +84,9 @@ export function createProxy<T extends Record<any, any>>(
   return ret
 }
 
-type config = {
-  $isRequiredWhen: (a: boolFunc) => config
-  $isActiveWhen: (a: boolFunc) => config
+type config<T> = {
+  $isRequiredWhen: (a: boolFunc<T>) => config<T>
+  $isActiveWhen: (a: boolFunc<T>) => config<T>
 }
 
 type state<T> = {
@@ -95,4 +95,4 @@ type state<T> = {
   $value: T
 }
 
-type dollars<T> = config & state<T>
+type dollars<T> = config<T> & state<T>
