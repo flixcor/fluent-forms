@@ -2,8 +2,8 @@ import {
   createFormBuilder,
   Form,
   FormGroup,
-  FormState,
   RecurringGroup,
+  IFormBuilder,
 } from '../src'
 
 export interface IMyForm extends Form {
@@ -21,7 +21,7 @@ interface IGroup2 extends FormGroup {
   question4: string
 }
 
-export function getBuilder(): FormState<IMyForm> {
+export function getBuilder(): IFormBuilder<IMyForm> {
   const myForm: IMyForm = {
     question1: 5,
     question2: 'answer',
@@ -55,7 +55,5 @@ export function getBuilder(): FormState<IMyForm> {
 
   configurator.recurringGroup.question4.$isRequiredWhen((_, i) => i === 0)
 
-  const state = builder.getState()
-
-  return state
+  return builder
 }
