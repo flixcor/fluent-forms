@@ -11,77 +11,77 @@ function copy<T extends Record<any, any>>(obj: T): T {
 
 export function createProxy<T extends Record<any, any>>(
   obj: T,
-  path: any[] = [],
+  path: Array<string | number> = [],
   requiredFuncs = new Map<string, () => boolean>(),
   activeFuncs = new Map<string, () => boolean>(),
   root = obj
 ): T & dollars<T> {
   const ret = new Proxy(<any>obj, {
-    get(target: any, key: any) {
-      const currentPathString = path.join('.')
+    get(target: any, key: string | number) {
+      if (typeof key === 'string' && key.startsWith('$'))
+        return getEnhancements(key, obj, path, requiredFuncs, activeFuncs, root)
 
-      if (key === '$isProxy') return true
-      if (key === '$root') return root
-      if (key === '$path') return currentPathString
-      if (key === '$value') {
-        return get(root, currentPathString)
-      }
-      if (key === '$isRequiredWhen')
-        return (ding: boolFunc<T>) => {
-          requiredFuncs.set(currentPathString, () => ding(root))
-        }
-      if (key === '$isActiveWhen')
-        return (ding: boolFunc<T>) => {
-          activeFuncs.set(currentPathString, () => ding(root))
-        }
-      if (key === '$isRequired') {
-        let func = requiredFuncs.get(currentPathString)
-        if (!func) {
-          func = () => false
-          requiredFuncs.set(currentPathString, func)
-        }
-        return func()
-      }
-      if (key === '$isActive') {
-        let func = activeFuncs.get(currentPathString)
-        if (!func) {
-          func = () => true
-          activeFuncs.set(currentPathString, func)
-        }
-        return func()
-      }
+      if (!(key in target)) throw 'key ' + key + ' not found'
 
       const prop = target[key]
-
-      if (typeof prop == 'undefined') {
-        return
-      }
-
       const newPath = [...path, key]
 
-      // set value as proxy
-      const propObj =
-        typeof prop === 'object' ? copy(prop) : { path: newPath.join('.') }
+      const propObj: Record<any, any> =
+        typeof prop === 'object' ? copy(prop) : { $path: newPath.join('.') }
 
-      if (!propObj.$isProxy)
-        return createProxy(propObj, newPath, requiredFuncs, activeFuncs, root)
-
-      return
+      return createProxy(propObj, newPath, requiredFuncs, activeFuncs, root)
     },
     set(target: any, key: any, value: any) {
       if (key === '$value') {
-        const path = target.path
+        const path = target.$path
         if (!path) {
-          throw 'could not find path'
+          throw 'could not find path for key ' + key
         }
         set(root, path, value)
         return true
       }
 
-      throw 'set not supported'
+      throw 'set not supported for key ' + key
     },
   })
   return ret
+}
+
+function getEnhancements<T extends Record<any, any>>(
+  key: string,
+  obj: T,
+  path: Array<string | number> = [],
+  requiredFuncs = new Map<string, () => boolean>(),
+  activeFuncs = new Map<string, () => boolean>(),
+  root = obj
+) {
+  const currentPathString = path.join('.')
+
+  const options: Record<string, () => any> = {
+    $isProxy: () => true,
+    $root: () => root,
+    $path: () => currentPathString,
+    $value: () => get(root, currentPathString),
+    $isRequiredWhen: () => (func: boolFunc<T>) => {
+      requiredFuncs.set(currentPathString, () => func(root))
+    },
+    $isActiveWhen: () => (func: boolFunc<T>) => {
+      activeFuncs.set(currentPathString, () => func(root))
+    },
+    $isRequired: getOrDefault(requiredFuncs, currentPathString, () => false),
+    $isActive: getOrDefault(activeFuncs, currentPathString, () => true),
+  }
+
+  return options[key]()
+}
+
+function getOrDefault<T, F>(map: Map<T, F>, index: T, otherwise: F): F {
+  let found = map.get(index)
+  if (typeof found === 'undefined') {
+    found = otherwise
+    map.set(index, found)
+  }
+  return found
 }
 
 type config<T> = {
