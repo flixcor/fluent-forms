@@ -3,6 +3,8 @@ import get from 'get-value'
 import { FormGroup, Form, FormState, FormQuestion } from './types'
 import { GroupConfiguratorEquivalent, GroupState } from './form-builder'
 
+const isInteger = (s: string): boolean => /^-{0,1}\d+$/.test(s)
+
 function cloneArray<T extends Array<unknown>>(arr: T): Array<unknown> {
   return arr.map((x) => {
     return typeof x === 'object' && !Array.isArray(x) ? Object.create(x) : x
@@ -49,10 +51,16 @@ export function createProxy<
           state
         )
 
-      if (!(key in target)) throw 'key ' + key + ' not found'
-
-      const prop = target[key]
+      let prop = target[key]
       const newPath = [...path, key]
+
+      if (
+        Array.isArray(target) &&
+        target.length &&
+        typeof target[0][key] !== 'undefined'
+      ) {
+        prop = target[0][key]
+      }
 
       const propObj =
         typeof prop === 'object'
@@ -104,7 +112,7 @@ function getEnhancements<TForm extends Form>(
   state: FormState<TForm>
 ) {
   const lastNumberIndex: number = path
-    .map((x) => typeof x === 'number')
+    .map((x) => isInteger(x.toString()))
     .lastIndexOf(true)
 
   let index: number | undefined = undefined
@@ -112,8 +120,8 @@ function getEnhancements<TForm extends Form>(
   let safePath = currentPathString
 
   if (lastNumberIndex >= 0) {
-    index = path[lastNumberIndex] as number
-    safePath = path.filter((x) => typeof x === 'string').join('.')
+    index = Number.parseInt(path[lastNumberIndex].toString())
+    safePath = path.filter((x) => !isInteger(x.toString())).join('.')
   }
 
   const isActive = () => getOrDefault(activeFuncs, safePath, () => true)(index)
@@ -143,8 +151,11 @@ function getEnhancements<TForm extends Form>(
         func(state, typeof i === 'undefined' ? -1 : i)
       )
     },
-    $isRequired: () =>
-      getOrDefault(requiredFuncs, safePath, () => false)(index),
+    $isRequired: () => {
+      const i = index
+      const func = getOrDefault(requiredFuncs, safePath, () => false)
+      return func(i)
+    },
     $isActive: () => isActive(),
     $isActiveAnd: () => (func: (q: FormQuestion) => boolean) => {
       return isActive() && func(value())

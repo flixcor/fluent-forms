@@ -2,6 +2,7 @@ import { getProxy } from '../example'
 
 const proxy = getProxy()
 proxy.question2.$isActiveWhen((f) => f.question1.$isActiveAnd((x) => x <= 5))
+proxy.recurringGroup.question4.$isRequiredWhen((_, i) => i === 0)
 const { group1, question1, question2, recurringGroup } = proxy
 const question3 = group1.question3
 
@@ -16,4 +17,7 @@ test('proxy test', () => {
 
   proxy.question1.$value = 6
   expect(question2.$isActive).toBe(false)
+
+  expect(recurringGroup[0].question4.$isRequired).toBe(true)
+  expect(recurringGroup[1].question4.$isRequired).toBe(false)
 })
