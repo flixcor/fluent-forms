@@ -3,12 +3,6 @@ import get from 'get-value'
 
 type boolFunc<T> = (arg: T) => boolean
 
-function copy<T extends Record<string | number, unknown>>(obj: T): T {
-  const ret: Record<string | number, unknown> = {}
-  Object.assign(ret, obj)
-  return ret as T
-}
-
 export function createProxy<T extends Record<string | number, unknown>>(
   obj: T,
   path: Array<string | number> = [],
@@ -26,16 +20,21 @@ export function createProxy<T extends Record<string | number, unknown>>(
       const prop = target[key]
       const newPath = [...path, key]
 
-      const propObj: Record<string | number, unknown> =
+      const propObj =
         typeof prop === 'object'
-          ? copy(<Record<string | number, unknown>>prop)
-          : { $path: newPath.join('.') }
+          ? (Object.create(prop) as T)
+          : (Object.create(null) as T)
 
       return createProxy(propObj, newPath, requiredFuncs, activeFuncs, root)
     },
-    set(target: T, key: string | number, value: unknown) {
+    set(
+      _target: T,
+      key: string | number,
+      value: unknown,
+      receiver: dollars<T>
+    ) {
       if (key === '$value') {
-        const path = target.$path
+        const path = receiver.$path
         if (typeof path !== 'string') {
           throw 'could not find path for key ' + key
         }
