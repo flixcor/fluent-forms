@@ -43,7 +43,7 @@ export class FormBuilder<T extends Form> implements IFormBuilder<T> {
   private initializeFormState<I extends FormGroup>(
     form: I,
     path = '',
-    root: any = {},
+    root = {} as FormState<T>,
     isRoot = true,
     index: number | undefined = undefined
   ): GroupState<T, I> {
@@ -111,7 +111,7 @@ export class FormBuilder<T extends Form> implements IFormBuilder<T> {
       Object.assign(root, ret)
     }
 
-    return <any>ret
+    return (ret as unknown) as GroupState<T, I>
   }
 }
 
@@ -205,7 +205,7 @@ export function buildConfig<TForm extends Form, TGroup extends FormGroup>(
     : new FormElementBuilder(path)
   const other = Object.fromEntries(entries)
   Object.assign(ret, other)
-  return <any>ret
+  return (ret as unknown) as GroupConfiguratorEquivalent<TForm, TGroup>
 }
 
 export interface IFormStateObject {
