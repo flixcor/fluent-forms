@@ -3,21 +3,21 @@ import get from 'get-value'
 
 type boolFunc<T> = (arg: T) => boolean
 
-function copy<T extends Record<any, any>>(obj: T): T {
-  const ret: Record<any, any> = {}
+function copy<T extends Record<string | number, unknown>>(obj: T): T {
+  const ret: Record<string | number, unknown> = {}
   Object.assign(ret, obj)
-  return ret
+  return ret as T
 }
 
-export function createProxy<T extends Record<any, any>>(
+export function createProxy<T extends Record<string | number, unknown>>(
   obj: T,
   path: Array<string | number> = [],
   requiredFuncs = new Map<string, () => boolean>(),
   activeFuncs = new Map<string, () => boolean>(),
   root = obj
 ): T & dollars<T> {
-  const ret = new Proxy(<any>obj, {
-    get(target: any, key: string | number) {
+  const ret = new Proxy(obj, {
+    get(target: T, key: string | number) {
       if (typeof key === 'string' && key.startsWith('$'))
         return getEnhancements(key, obj, path, requiredFuncs, activeFuncs, root)
 
@@ -26,15 +26,17 @@ export function createProxy<T extends Record<any, any>>(
       const prop = target[key]
       const newPath = [...path, key]
 
-      const propObj: Record<any, any> =
-        typeof prop === 'object' ? copy(prop) : { $path: newPath.join('.') }
+      const propObj: Record<string | number, unknown> =
+        typeof prop === 'object'
+          ? copy(<Record<string | number, unknown>>prop)
+          : { $path: newPath.join('.') }
 
       return createProxy(propObj, newPath, requiredFuncs, activeFuncs, root)
     },
-    set(target: any, key: any, value: any) {
+    set(target: T, key: string | number, value: unknown) {
       if (key === '$value') {
         const path = target.$path
-        if (!path) {
+        if (typeof path !== 'string') {
           throw 'could not find path for key ' + key
         }
         set(root, path, value)
@@ -44,10 +46,10 @@ export function createProxy<T extends Record<any, any>>(
       throw 'set not supported for key ' + key
     },
   })
-  return ret
+  return ret as T & dollars<T>
 }
 
-function getEnhancements<T extends Record<any, any>>(
+function getEnhancements<T extends Record<string | number, unknown>>(
   key: string,
   obj: T,
   path: Array<string | number> = [],
@@ -57,7 +59,10 @@ function getEnhancements<T extends Record<any, any>>(
 ) {
   const currentPathString = path.join('.')
 
-  const options: Record<string, () => any> = {
+  const options: Record<
+    string,
+    () => boolean | string | T | ((func: boolFunc<T>) => void)
+  > = {
     $isProxy: () => true,
     $root: () => root,
     $path: () => currentPathString,
