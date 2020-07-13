@@ -115,7 +115,7 @@ function getEnhancements<TForm extends Form>(
     .map((x) => isInteger(x))
     .lastIndexOf(true)
 
-  let index: number | undefined = undefined
+  let index = -1
   const currentPathString = path.join('.')
   let safePath = currentPathString
 
