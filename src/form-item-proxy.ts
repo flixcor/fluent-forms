@@ -28,7 +28,7 @@ export function createProxy<
   TForm extends FormGroup
 >(
   obj: TFormGroup,
-  path: Array<string | number> = [],
+  path: Array<string> = [],
   requiredFuncs = new Map<string, () => boolean>(),
   activeFuncs = new Map<string, () => boolean>(),
   root = (obj as unknown) as TForm,
@@ -36,7 +36,7 @@ export function createProxy<
   isRoot = true
 ): FormProxy<TForm, TFormGroup> {
   const ret = new Proxy(obj, {
-    get(target: TFormGroup, key: string | number) {
+    get(target: TFormGroup, key: string) {
       if (key === 'length' && Array.isArray(target)) {
         return target.length
       }
@@ -105,14 +105,14 @@ export function createProxy<
 
 function getEnhancements<TForm extends Form>(
   key: string,
-  path: Array<string | number>,
+  path: Array<string>,
   requiredFuncs: Map<string, (index: number | undefined) => boolean>,
   activeFuncs: Map<string, (index: number | undefined) => boolean>,
   root: TForm,
   state: FormState<TForm>
 ) {
   const lastNumberIndex: number = path
-    .map((x) => isInteger(x.toString()))
+    .map((x) => isInteger(x))
     .lastIndexOf(true)
 
   let index: number | undefined = undefined
@@ -120,8 +120,8 @@ function getEnhancements<TForm extends Form>(
   let safePath = currentPathString
 
   if (lastNumberIndex >= 0) {
-    index = Number.parseInt(path[lastNumberIndex].toString())
-    safePath = path.filter((x) => !isInteger(x.toString())).join('.')
+    index = Number.parseInt(path[lastNumberIndex])
+    safePath = path.filter((x) => !isInteger(x)).join('.')
   }
 
   const isActive = () => getOrDefault(activeFuncs, safePath, () => true)(index)
