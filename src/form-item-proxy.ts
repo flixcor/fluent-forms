@@ -1,6 +1,6 @@
 import set from 'set-value'
 import get from 'get-value'
-import { FormGroup, Form, FormState } from './types'
+import { FormGroup, Form, FormState, FormQuestion } from './types'
 import { GroupConfiguratorEquivalent, GroupState } from './form-builder'
 
 function cloneArray<T extends Array<unknown>>(arr: T): Array<unknown> {
@@ -126,7 +126,8 @@ function getEnhancements<TForm extends Form>(
       | boolean
       | string
       | TForm
-      | ((func: boolFunc<FormState<TForm>>) => void)
+      | ((func: FormEvaluation<TForm>) => void)
+      | ((func: (q: FormQuestion) => boolean) => boolean)
   > = {
     $isProxy: () => true,
     $root: () => root,
@@ -145,7 +146,7 @@ function getEnhancements<TForm extends Form>(
     $isRequired: () =>
       getOrDefault(requiredFuncs, safePath, () => false)(index),
     $isActive: () => isActive(),
-    $isActiveAnd: () => (func: (q: any) => boolean) => {
+    $isActiveAnd: () => (func: (q: FormQuestion) => boolean) => {
       return isActive() && func(value())
     },
   }
