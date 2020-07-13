@@ -97,7 +97,8 @@ type config<T> = {
 type state<T> = {
   $isRequired: boolean
   $isActive: boolean
+  $path: string
   $value: T
 }
 
-type dollars<T> = config<T> & state<T>
+export type dollars<T> = config<T> & state<T>
