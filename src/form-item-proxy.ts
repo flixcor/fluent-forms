@@ -75,7 +75,7 @@ export function createProxy<
       _target: TFormGroup,
       key: string | number,
       value: unknown,
-      receiver: dollars<TFormGroup>
+      receiver: FormProxy<TForm, TFormGroup>
     ) {
       if (key === '$value') {
         const path = receiver.$path
@@ -108,15 +108,15 @@ function getEnhancements<TForm extends Form>(
     .lastIndexOf(true)
 
   let index: number | undefined = undefined
-  let currentPathString = path.join('.')
+  const currentPathString = path.join('.')
+  let safePath = currentPathString
 
   if (lastNumberIndex >= 0) {
     index = path[lastNumberIndex] as number
-    currentPathString = path.slice(0, lastNumberIndex).join('.')
+    safePath = path.filter((x) => typeof x === 'string').join('.')
   }
 
-  const isActive = () =>
-    getOrDefault(activeFuncs, currentPathString, () => true)(index)
+  const isActive = () => getOrDefault(activeFuncs, safePath, () => true)(index)
 
   const value = () => get(root, currentPathString)
 
@@ -143,7 +143,7 @@ function getEnhancements<TForm extends Form>(
       )
     },
     $isRequired: () =>
-      getOrDefault(requiredFuncs, currentPathString, () => false)(index),
+      getOrDefault(requiredFuncs, safePath, () => false)(index),
     $isActive: () => isActive(),
     $isActiveAnd: () => (func: (q: any) => boolean) => {
       return isActive() && func(value())
@@ -151,14 +151,6 @@ function getEnhancements<TForm extends Form>(
   }
 
   return options[key]()
-}
-
-function isActive(
-  activeFuncs: Map<string, (index: number | undefined) => boolean>,
-  path: string,
-  index: number | undefined
-) {
-  return getOrDefault(activeFuncs, path, () => true)(index)
 }
 
 function getOrDefault<T, F>(map: Map<T, F>, index: T, otherwise: F): F {
@@ -169,17 +161,3 @@ function getOrDefault<T, F>(map: Map<T, F>, index: T, otherwise: F): F {
   }
   return found
 }
-
-type config<T> = {
-  $isRequiredWhen: (a: boolFunc<T>) => config<T>
-  $isActiveWhen: (a: boolFunc<T>) => config<T>
-}
-
-type state<T> = {
-  $isRequired: boolean
-  $isActive: boolean
-  $path: string
-  $value: T
-}
-
-export type dollars<T> = config<T> & state<T>
