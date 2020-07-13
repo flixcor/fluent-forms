@@ -28,18 +28,22 @@ function asDollars(input: unknown): dollars<unknown> {
   return input as dollars<unknown>
 }
 
+const sub = asDollars(proxy.sub)
+const subNumQ = asDollars(proxy.sub.numQ)
+const arrQP = asDollars(proxy.arrQ)
+const recG = asDollars(proxy.recG)
+const recG0StrQ = asDollars(proxy.recG[0].strQ)
+
 test('proxy test', () => {
-  expect(proxy.$isActive).toBe(true)
-  expect(proxy.$isRequired).toBe(false)
-  expect(asDollars(proxy.sub).$isActive).toBe(true)
-  expect(asDollars(proxy.sub).$isRequired).toBe(false)
-  expect(asDollars(proxy.sub).$path).toBe('sub')
-  expect(asDollars(proxy.sub.numQ).$value).toBe(numQ)
-  expect(asDollars(proxy.arrQ).$path).toBe('arrQ')
-  expect(asDollars(proxy.arrQ).$value).toBe(arrQ)
-  expect(asDollars(proxy.recG).$path).toBe('recG')
-  expect(asDollars(proxy.recG[0].strQ).$value).toBe(strQ)
-  expect(asDollars(proxy.recG[0].strQ).$path).toBe('recG.0.strQ')
+  expect(sub.$isActive).toBe(true)
+  expect(sub.$isRequired).toBe(false)
+  expect(sub.$path).toBe('sub')
+  expect(subNumQ.$value).toBe(numQ)
+  expect(arrQP.$path).toBe('arrQ')
+  expect(arrQP.$value).toBe(arrQ)
+  expect(recG.$path).toBe('recG')
+  expect(recG0StrQ.$value).toBe(strQ)
+  expect(recG0StrQ.$path).toBe('recG.0.strQ')
 
   asDollars(proxy.sub.numQ).$value = newVal
 
