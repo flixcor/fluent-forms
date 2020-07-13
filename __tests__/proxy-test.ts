@@ -1,3 +1,5 @@
+/// <reference types="jest" />
+
 import { getProxy } from '../example'
 
 const proxy = getProxy()
