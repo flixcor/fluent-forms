@@ -34,7 +34,7 @@ export function createProxy<
   isRoot = true
 ): FormProxy<TForm, TFormGroup> {
   const ret = new Proxy(obj, {
-    get(target: TFormGroup, key: string | number, receiver: any) {
+    get(target: TFormGroup, key: string | number) {
       if (key === 'length' && Array.isArray(target)) {
         return target.length
       }
@@ -72,13 +72,13 @@ export function createProxy<
       )
     },
     set(
-      target: TFormGroup,
+      _target: TFormGroup,
       key: string | number,
       value: unknown,
       receiver: dollars<TFormGroup>
     ) {
       if (key === '$value') {
-        const path = target.$path
+        const path = receiver.$path
         if (typeof path !== 'string') {
           throw 'could not find path for key ' + key
         }
@@ -115,6 +115,11 @@ function getEnhancements<TForm extends Form>(
     currentPathString = path.slice(0, lastNumberIndex).join('.')
   }
 
+  const isActive = () =>
+    getOrDefault(activeFuncs, currentPathString, () => true)(index)
+
+  const value = () => get(root, currentPathString)
+
   const options: Record<
     string,
     () =>
@@ -126,7 +131,7 @@ function getEnhancements<TForm extends Form>(
     $isProxy: () => true,
     $root: () => root,
     $path: () => currentPathString,
-    $value: () => get(root, currentPathString),
+    $value: value,
     $isRequiredWhen: () => (func: FormEvaluation<TForm>) => {
       requiredFuncs.set(currentPathString, (i: number | undefined) =>
         func(state, typeof i === 'undefined' ? -1 : i)
@@ -139,11 +144,21 @@ function getEnhancements<TForm extends Form>(
     },
     $isRequired: () =>
       getOrDefault(requiredFuncs, currentPathString, () => false)(index),
-    $isActive: () =>
-      getOrDefault(activeFuncs, currentPathString, () => true)(index),
+    $isActive: () => isActive(),
+    $isActiveAnd: () => (func: (q: any) => boolean) => {
+      return isActive() && func(value())
+    },
   }
 
   return options[key]()
+}
+
+function isActive(
+  activeFuncs: Map<string, (index: number | undefined) => boolean>,
+  path: string,
+  index: number | undefined
+) {
+  return getOrDefault(activeFuncs, path, () => true)(index)
 }
 
 function getOrDefault<T, F>(map: Map<T, F>, index: T, otherwise: F): F {

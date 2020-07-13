@@ -5,10 +5,6 @@ import { getBuilder } from '../example/index'
 const builder = getBuilder()
 const state = builder.getState()
 
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
 test('All test', () => {
   const {
     group1,
@@ -29,9 +25,7 @@ test('All test', () => {
 
   question1.$value = 3
 
-  sleep(1).then(() => {
-    expect(group1.$isActive).toBe(true)
-    expect(question3.$isActive).toBe(true)
-    expect(question2.$isActive).toBe(false)
-  })
+  expect(group1.$isActive).toBe(true)
+  expect(question3.$isActive).toBe(true)
+  expect(question2.$isActive).toBe(false)
 })
