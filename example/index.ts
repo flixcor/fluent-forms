@@ -5,7 +5,7 @@ import {
   RecurringGroup,
   IFormBuilder,
 } from '../src'
-import { FormProxy, createProxy } from '../src/form-item-proxy'
+import { FormProxy, createBuilder } from '../src/form-item-proxy'
 
 export interface IMyForm extends Form {
   question1: number
@@ -22,7 +22,7 @@ interface IGroup2 extends FormGroup {
   question4: string
 }
 
-export function getProxy(): FormProxy<IMyForm, IMyForm> {
+export function getProxy(): IFormBuilder<IMyForm> {
   const myForm: IMyForm = {
     question1: 5,
     question2: 'answer',
@@ -39,8 +39,7 @@ export function getProxy(): FormProxy<IMyForm, IMyForm> {
     ],
   }
 
-  const proxy = createProxy(myForm)
-  return proxy as FormProxy<IMyForm, IMyForm>
+  return createBuilder(myForm)
 }
 
 export function getBuilder(): IFormBuilder<IMyForm> {

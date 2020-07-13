@@ -1,7 +1,11 @@
 import set from 'set-value'
 import get from 'get-value'
-import { FormGroup, Form, FormState, FormQuestion } from './types'
-import { GroupConfiguratorEquivalent, GroupState } from './form-builder'
+import { FormGroup, Form, FormState, FormQuestion, FormConfig } from './types'
+import {
+  GroupConfiguratorEquivalent,
+  GroupState,
+  IFormBuilder,
+} from './form-builder'
 
 const isInteger = (s: string): boolean => /^-{0,1}\d+$/.test(s)
 
@@ -22,6 +26,19 @@ type FormEvaluation<TForm extends Form> = (
   index: number
 ) => boolean
 type boolFunc<T> = (arg: T) => boolean
+
+export function createBuilder<T extends Form>(form: T): IFormBuilder<T> {
+  const proxy = createProxy(form)
+  const ret: IFormBuilder<T> = {
+    getState(): FormState<T> {
+      return proxy
+    },
+    getConfigurator(): FormConfig<T> {
+      return proxy as any
+    },
+  }
+  return ret
+}
 
 export function createProxy<
   TFormGroup extends FormGroup,
