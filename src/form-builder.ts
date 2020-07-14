@@ -1,414 +1,247 @@
-import {
-  Form,
-  FormQuestion,
-  FormElement,
-  FormGroup,
-  FormState,
-  FormConfig,
-} from './types'
-import {
-  IFormElementBuilder,
-  FormElementBuilder,
-  IFormElementBuilderInternal,
-} from './form-element-builder'
-import {
-  IGroupElementBuilder,
-  GroupElementBuilder,
-  IGroupElementBuilderInternal,
-} from './recurring-groups'
 import set from 'set-value'
 import get from 'get-value'
+import {
+  FormGroup,
+  Form,
+  FormState,
+  FormQuestion,
+  FormConfig,
+  GroupConfiguratorEquivalent,
+  GroupState,
+  IFormBuilder,
+} from './types'
 
-export interface IFormBuilder<T extends Form> {
-  getState: () => FormState<T>
-  getConfigurator: () => FormConfig<T>
-  getForm: () => T
-}
+const isInteger = (s: string): boolean => /^-{0,1}\d+$/.test(s)
 
-export class FormBuilder<T extends Form> implements IFormBuilder<T> {
-  private form: T
+type FormProxy<
+  TForm extends Form,
+  TFormGroup extends FormGroup
+> = GroupConfiguratorEquivalent<TForm, TFormGroup> &
+  GroupState<TForm, TFormGroup>
 
-  private _configurator: GroupConfiguratorEquivalent<T, T>
-  private _state: GroupState<T, T>
+type FormEvaluation<TForm extends Form> = (
+  form: GroupState<TForm, TForm>,
+  index: number
+) => boolean
+type boolFunc<T> = (arg: T) => boolean
 
-  constructor(form: T) {
-    this.form = form
-    this._configurator = buildConfig(form)
-    this._state = this.initializeFormState(form)
-  }
-
-  public getForm = (): T => this.form
-
-  public getState = (): FormState<T> => this._state
-
-  public getConfigurator = (): FormConfig<T> => this._configurator
-
-  private initializeFormState<I extends FormGroup>(
-    form: I,
-    path = '',
-    root = {} as FormState<T>,
-    isRoot = true,
-    index: number | undefined = undefined
-  ): GroupState<T, I> {
-    const dottedPath = path ? path + '.' : ''
-    const entries = Object.entries(form).map(([key, value]) => {
-      const nextPath = dottedPath + key
-
-      if (isQuestion(value)) {
-        const state =
-          typeof index === 'number'
-            ? new RecurringGroupStateObject<T, typeof value>(
-                this.form,
-                this._configurator,
-                nextPath,
-                root,
-                index
-              )
-            : new FormStateObject<T, typeof value>(
-                this.form,
-                this._configurator,
-                nextPath,
-                root
-              )
-        return [key, state]
+function createProxy<TFormGroup extends FormGroup, TForm extends FormGroup>(
+  obj: TFormGroup,
+  path: Array<string> = [],
+  requiredFuncs = new Map<string, () => boolean>(),
+  activeFuncs = new Map<string, () => boolean>(),
+  root = (obj as unknown) as TForm,
+  state = {} as FormState<TForm>,
+  isRoot = true
+): FormProxy<TForm, TFormGroup> {
+  const ret = new Proxy(obj, {
+    get(target: TFormGroup, key: string, receiver: unknown) {
+      if (key === 'length' && Array.isArray(target)) {
+        return target.length
       }
 
-      if (Array.isArray(value) && value.length) {
-        const asGroup = <FormGroup[]>value
-        const sub = asGroup.map((x, i) =>
-          this.initializeFormState(
-            <FormGroup>x,
-            `${nextPath}[${i}]`,
-            root,
-            false,
-            i
-          )
+      if (typeof key === 'string' && key.startsWith('$'))
+        return getEnhancements(
+          key,
+          path,
+          requiredFuncs,
+          activeFuncs,
+          root,
+          state,
+          receiver
         )
-        return [key, sub]
+
+      let prop = target[key]
+      const newPath = [...path, key]
+
+      if (
+        Array.isArray(target) &&
+        target.length &&
+        typeof target[0][key] !== 'undefined'
+      ) {
+        prop = target[0][key]
       }
 
-      const sub = this.initializeFormState(
-        <FormGroup>value,
-        nextPath,
+      const propObj =
+        typeof prop === 'object' || Array.isArray(prop)
+          ? (prop as TFormGroup)
+          : (Object.create(null) as TFormGroup)
+
+      return createProxy(
+        propObj,
+        newPath,
+        requiredFuncs,
+        activeFuncs,
         root,
+        state,
         false
       )
-      return [key, sub]
-    })
+    },
+    set(
+      _target: TFormGroup,
+      key: string | number,
+      value: unknown,
+      receiver: FormProxy<TForm, TFormGroup>
+    ) {
+      if (key === '$value') {
+        const path = receiver.$path
+        if (typeof path !== 'string') {
+          throw 'could not find path for key ' + key
+        }
+        set(root, path, value)
+        return true
+      }
 
-    const ret =
-      typeof index === 'number'
-        ? new RecurringGroupStateObject<T, I>(
-            this.form,
-            this._configurator,
-            path,
-            root,
-            index
-          )
-        : new FormStateObject<T, I>(this.form, this._configurator, path, root)
-
-    const other = Object.fromEntries(entries)
-    Object.assign(ret, other)
-
-    if (isRoot) {
-      Object.assign(root, ret)
-    }
-
-    return (ret as unknown) as GroupState<T, I>
-  }
-}
-
-export type GroupState<T extends Form, I extends FormGroup> = {
-  [key in keyof I]: I[key] extends FormGroup
-    ? GroupState<T, I[key]>
-    : I[key] extends FormGroup[]
-    ? ReadonlyArray<GroupState<T, I[key][0]>> & IArrayOperations<I[key][0]>
-    : I[key] extends FormQuestion
-    ? IQuestionState<I[key]>
-    : never
-} &
-  IFormStateObject
-
-type RecurringConfigurator<I extends FormGroup[]> = {
-  [key in keyof I[0]]: I[0][key] extends FormGroup[]
-    ? RecurringConfigurator<I[0][key]>
-    : I[0][key] extends FormQuestion | FormGroup
-    ? IGroupElementBuilder<I[0]>
-    : never
-} &
-  IGroupElementBuilder<I[0]>
-
-export type GroupConfiguratorEquivalent<T extends Form, I extends FormGroup> = {
-  [key in keyof I]: I[key] extends FormGroup
-    ? GroupConfiguratorEquivalent<T, I[key]>
-    : I[key] extends FormGroup[]
-    ? RecurringConfigurator<I[key]>
-    : I[key] extends FormQuestion
-    ? IFormElementBuilder<T>
-    : never
-} &
-  IFormElementBuilder<T>
-
-export interface IArrayOperations<T extends FormGroup> {
-  $append: (group: T) => void
-  $remove: (index: number) => void
-  $insert: (index: number, group: T) => void
-}
-
-export interface IQuestionState<T extends FormElement>
-  extends IFormStateObject {
-  $value: T
-  $isActiveAnd: (evaluation: (value: T) => boolean) => boolean
-}
-
-function isQuestion(unknown: unknown): boolean {
-  const types = ['string', 'number']
-  const isMultipleChoice: boolean =
-    Array.isArray(unknown) &&
-    (!unknown.length || types.includes(typeof unknown[0]))
-  return types.includes(typeof unknown) || isMultipleChoice
-}
-
-export function buildConfig<TForm extends Form, TGroup extends FormGroup>(
-  group: TGroup,
-  path = '',
-  isRecurring = false
-): GroupConfiguratorEquivalent<TForm, TGroup> {
-  const dottedPath = path ? path + '.' : ''
-  const entries = Object.entries(group).map(([key, value]) => {
-    const nextPath = dottedPath + key
-
-    if (isQuestion(value)) {
-      const config = isRecurring
-        ? new GroupElementBuilder(nextPath)
-        : new FormElementBuilder(nextPath)
-      return [key, config]
-    }
-
-    if (Array.isArray(value) && value.length) {
-      const first = value[0]
-      const sub = buildConfig<TForm, FormGroup>(
-        <FormGroup>first,
-        nextPath,
-        true
-      )
-      return [key, sub]
-    }
-
-    const sub = buildConfig<TForm, FormGroup>(
-      <FormGroup>value,
-      nextPath,
-      isRecurring
-    )
-    return [key, sub]
+      throw 'set not supported for key ' + key
+    },
   })
-
-  const ret = isRecurring
-    ? new GroupElementBuilder(path)
-    : new FormElementBuilder(path)
-  const other = Object.fromEntries(entries)
-  Object.assign(ret, other)
-  return (ret as unknown) as GroupConfiguratorEquivalent<TForm, TGroup>
+  if (isRoot) {
+    Object.assign(state, ret)
+  }
+  return (ret as unknown) as FormProxy<TForm, TFormGroup>
 }
 
-export interface IFormStateObject {
-  readonly $isActive: boolean
-  readonly $isRequired: boolean
-  readonly $path: string
+function getEnhancements<TForm extends Form>(
+  key: string,
+  path: Array<string>,
+  requiredFuncs: Map<string, (index: number | undefined) => boolean>,
+  activeFuncs: Map<string, (index: number | undefined) => boolean>,
+  root: TForm,
+  state: FormState<TForm>,
+  receiver: unknown
+) {
+  const lastNumberIndex: number = path
+    .map((x) => isInteger(x))
+    .lastIndexOf(true)
+
+  const index =
+    lastNumberIndex >= 0 ? Number.parseInt(path[lastNumberIndex]) : undefined
+
+  const currentPathString = path.join('.')
+  const safePath = path.filter((x) => !isInteger(x))
+
+  const isActive = () =>
+    isActiveRecursive(safePath, (s: string) =>
+      getOrDefault(activeFuncs, s, () => true)(index)
+    )
+
+  const isRequired = () =>
+    isRequiredRecursive(safePath, (s: string) =>
+      getOrDefault(requiredFuncs, s, () => false)(index)
+    )
+
+  const value = () => get(root, currentPathString)
+
+  const options: Record<
+    string,
+    () =>
+      | boolean
+      | string
+      | TForm
+      | ((func: FormEvaluation<TForm>) => void)
+      | ((func: (q: FormQuestion) => boolean) => boolean)
+      | ((i: number) => void)
+      | ((val: unknown) => void)
+      | ((val: unknown, i: number) => void)
+  > = {
+    $isProxy: () => true,
+    $root: () => root,
+    $path: () => currentPathString,
+    $value: value,
+    $isRequiredWhen: () => (func: FormEvaluation<TForm>) => {
+      requiredFuncs.set(currentPathString, (i: number | undefined) =>
+        func(state, typeof i === 'undefined' ? -1 : i)
+      )
+      return receiver
+    },
+    $isActiveWhen: () => (func: FormEvaluation<TForm>) => {
+      activeFuncs.set(currentPathString, (i: number | undefined) =>
+        func(state, typeof i === 'undefined' ? -1 : i)
+      )
+      return receiver
+    },
+    $isRequired: isRequired,
+    $isActive: isActive,
+    $isActiveAnd: () => (func: (q: FormQuestion) => boolean) => {
+      return isActive() && func(value())
+    },
+    $append: () => (val: unknown) => {
+      const arr = value()
+      if (Array.isArray(arr)) {
+        arr.push(val)
+      }
+    },
+    $remove: () => (i: number) => {
+      const arr = value()
+      if (Array.isArray(arr)) {
+        arr.splice(i, 1)
+      }
+    },
+    $insert: () => (val: unknown, i: number) => {
+      const arr = value()
+      if (Array.isArray(arr)) {
+        arr.splice(i, 0, val)
+      }
+    },
+  }
+
+  return options[key]()
 }
 
-function getParentPath(path: string): string | undefined {
-  const split = path.split('.')
-  if (!isNaN(Number.parseInt(split[split.length - 1]))) {
-    if (split.length > 2) {
-      return split.slice(0, -2).join('.')
-    }
-  } else if (split.length > 1) {
-    return split.slice(0, -1).join('.')
+function getOrDefault<T, F>(map: Map<T, F>, index: T, otherwise: F): F {
+  let found = map.get(index)
+  if (typeof found === 'undefined') {
+    found = otherwise
+    map.set(index, found)
   }
+  return found
 }
 
-class FormStateObject<T extends Form, I extends FormElement>
-  implements IQuestionState<I> {
-  readonly $path: string
-  private _form: T
-  private _root: GroupState<T, T>
-  private _ownConfig: IFormElementBuilderInternal<T>
-  private _parentPath: string | undefined
-  private _safePath: string
-
-  constructor(
-    form: T,
-    config: FormConfig<T>,
-    path: string,
-    root: FormState<T>
-  ) {
-    const safePath = path.replace(/\[/g, '.').replace(/\]/g, '')
-
-    this._form = form
-    this.$path = path
-    this._safePath = safePath
-    this._root = root
-
-    this._ownConfig = get(config, safePath)
-    this._parentPath = getParentPath(safePath)
+function isActiveRecursive(
+  path: string[],
+  isActiveFunc: (p: string) => boolean,
+  level = 0
+): boolean {
+  if (level >= path.length) {
+    return true
   }
 
-  private _selfIsActive(): boolean {
-    const config = this._ownConfig
-    return (
-      !config ||
-      typeof config._isActive !== 'function' ||
-      config._isActive(this._root)
-    )
-  }
-
-  private _selfIsRequired(): boolean {
-    const config = this._ownConfig
-    return (
-      config &&
-      typeof config._isRequired === 'function' &&
-      config._isRequired(this._root)
-    )
-  }
-
-  private _parentIsActive(): boolean {
-    if (typeof this._parentPath === 'undefined') {
-      return true
-    }
-    const parent = get(this._root, this._parentPath)
-
-    if (!parent) {
-      return true
-    }
-
-    return parent.$isActive
-  }
-
-  private _parentIsRequired(): boolean {
-    if (typeof this._parentPath === 'undefined') {
-      return false
-    }
-    const parent = get(this._root, this._parentPath)
-
-    if (!parent) {
-      return false
-    }
-
-    return parent.$isRequired
-  }
-
-  get $isActive(): boolean {
-    return this._parentIsActive() && this._selfIsActive()
-  }
-
-  get $isRequired(): boolean {
-    return this._parentIsRequired() || this._selfIsRequired()
-  }
-
-  get $value(): I {
-    return get(this._form, this._safePath)
-  }
-
-  set $value(value: I) {
-    set(this._form, this._safePath, value)
-  }
-
-  public $isActiveAnd(evaluation: (value: I) => boolean): boolean {
-    return this.$isActive && evaluation(this.$value)
-  }
+  const pathToCheck = path.slice(0, level + 1).join('.')
+  return (
+    isActiveFunc(pathToCheck) &&
+    isActiveRecursive(path, isActiveFunc, level + 1)
+  )
 }
 
-class RecurringGroupStateObject<T extends Form, I extends FormElement>
-  implements IQuestionState<I> {
-  readonly $path: string
-  private _form: T
-  private _root: GroupState<T, T>
-  private _ownConfig: IGroupElementBuilderInternal<T>
-  private _parentPath: string | undefined
-  private _index: number
-  private _safePath: string
-
-  constructor(
-    form: T,
-    config: FormConfig<T>,
-    path: string,
-    root: FormState<T>,
-    index: number
-  ) {
-    const safePath = path.replace(/\[/g, '.').replace(/\]/g, '')
-    const configPath = path.replace(/\[[0-9]+\]/g, '')
-
-    this._index = index
-    this._form = form
-    this.$path = path
-    this._root = root
-    this._safePath = safePath
-    this._ownConfig = get(config, configPath)
-    this._parentPath = getParentPath(safePath)
+function isRequiredRecursive(
+  path: string[],
+  isRequiredFunc: (p: string) => boolean,
+  level = 0
+): boolean {
+  if (level >= path.length) {
+    return false
   }
 
-  private _selfIsActive(): boolean {
-    const config = this._ownConfig
-    return (
-      !config ||
-      typeof config._isActive !== 'function' ||
-      config._isActive(this._root, this._index)
-    )
+  const pathToCheck = path.slice(0, level).join('.')
+
+  return (
+    isRequiredFunc(pathToCheck) ||
+    isActiveRecursive(path, isRequiredFunc, level + 1)
+  )
+}
+
+export function createFormBuilder<T extends Form>(form: T): IFormBuilder<T> {
+  const proxy = createProxy(form)
+  const ret: IFormBuilder<T> = {
+    getState(): FormState<T> {
+      return proxy
+    },
+    getConfigurator(): FormConfig<T> {
+      return (proxy as unknown) as FormConfig<T>
+    },
+    getForm(): T {
+      return form
+    },
   }
-
-  private _selfIsRequired(): boolean {
-    const config = this._ownConfig
-    return (
-      config &&
-      typeof config._isRequired === 'function' &&
-      config._isRequired(this._root, this._index)
-    )
-  }
-
-  private _parentIsActive(): boolean {
-    if (typeof this._parentPath === 'undefined') {
-      return true
-    }
-    const parent = get(this._root, this._parentPath)
-
-    if (!parent) {
-      return true
-    }
-
-    return parent?.$isActive
-  }
-
-  private _parentIsRequired(): boolean {
-    if (typeof this._parentPath === 'undefined') {
-      return false
-    }
-    const parent = get(this._root, this._parentPath)
-
-    if (!parent) {
-      return false
-    }
-
-    return parent?.$isRequired
-  }
-
-  get $isActive(): boolean {
-    return this._parentIsActive() && this._selfIsActive()
-  }
-
-  get $isRequired(): boolean {
-    return this._parentIsRequired() || this._selfIsRequired()
-  }
-
-  get $value(): I {
-    return get(this._form, this._safePath)
-  }
-
-  set $value(value: I) {
-    set(this._form, this._safePath, value)
-  }
-
-  public $isActiveAnd(evaluation: (value: I) => boolean): boolean {
-    return this.$isActive && evaluation(this.$value)
-  }
+  return ret
 }
