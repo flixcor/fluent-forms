@@ -22,6 +22,7 @@ import get from 'get-value'
 export interface IFormBuilder<T extends Form> {
   getState: () => FormState<T>
   getConfigurator: () => FormConfig<T>
+  getForm: () => T
 }
 
 export class FormBuilder<T extends Form> implements IFormBuilder<T> {
@@ -36,9 +37,11 @@ export class FormBuilder<T extends Form> implements IFormBuilder<T> {
     this._state = this.initializeFormState(form)
   }
 
-  public getState: () => FormState<T> = () => this._state
+  public getForm = (): T => this.form
 
-  public getConfigurator: () => FormConfig<T> = () => this._configurator
+  public getState = (): FormState<T> => this._state
+
+  public getConfigurator = (): FormConfig<T> => this._configurator
 
   private initializeFormState<I extends FormGroup>(
     form: I,
@@ -147,9 +150,9 @@ export type GroupConfiguratorEquivalent<T extends Form, I extends FormGroup> = {
   IFormElementBuilder<T>
 
 export interface IArrayOperations<T extends FormGroup> {
-  append: (group: T) => void
-  remove: (index: number) => void
-  insert: (index: number, group: T) => void
+  $append: (group: T) => void
+  $remove: (index: number) => void
+  $insert: (index: number, group: T) => void
 }
 
 export interface IQuestionState<T extends FormElement>

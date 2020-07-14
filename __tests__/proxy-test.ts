@@ -5,11 +5,13 @@ import { getProxy } from '../example'
 const builder = getProxy()
 const config = builder.getConfigurator()
 const state = builder.getState()
+const form = builder.getForm()
 
 config.question2.$isActiveWhen((f) => f.question1.$isActiveAnd((x) => x <= 5))
 config.recurringGroup.question4.$isRequiredWhen((_, i) => i === 0)
 const { group1, question1, question2, recurringGroup } = state
 const question3 = group1.question3
+
 
 test('proxy test', () => {
   expect(group1.$isActive).toBe(true)
@@ -25,4 +27,9 @@ test('proxy test', () => {
 
   expect(recurringGroup[0].question4.$isRequired).toBe(true)
   expect(recurringGroup[1].question4.$isRequired).toBe(false)
+
+  state.recurringGroup.$remove(1)
+
+  expect(form.recurringGroup.length).toBe(1)
+  expect(recurringGroup.length).toBe(1)
 })

@@ -36,6 +36,9 @@ export function createBuilder<T extends Form>(form: T): IFormBuilder<T> {
     getConfigurator(): FormConfig<T> {
       return proxy as any
     },
+    getForm(): T {
+      return form
+    }
   }
   return ret
 }
@@ -80,10 +83,8 @@ export function createProxy<
       }
 
       const propObj =
-        typeof prop === 'object'
-          ? Array.isArray(prop)
-            ? ((cloneArray(prop) as unknown) as TFormGroup)
-            : (Object.create(prop) as TFormGroup)
+        typeof prop === 'object' || Array.isArray(prop)
+          ? (prop as TFormGroup)
           : (Object.create(null) as TFormGroup)
 
       return createProxy(
@@ -153,6 +154,9 @@ function getEnhancements<TForm extends Form>(
       | TForm
       | ((func: FormEvaluation<TForm>) => void)
       | ((func: (q: FormQuestion) => boolean) => boolean)
+      | ((i: number) => void)
+      | ((val: unknown) => void)
+      | ((val: unknown, i: number) => void)
   > = {
     $isProxy: () => true,
     $root: () => root,
@@ -176,6 +180,24 @@ function getEnhancements<TForm extends Form>(
     $isActive: () => isActive(),
     $isActiveAnd: () => (func: (q: FormQuestion) => boolean) => {
       return isActive() && func(value())
+    },
+    $append: () => (val: unknown) => {
+      const arr = value()
+      if (Array.isArray(arr)) {
+        arr.push(val)
+      }
+    },
+    $remove: () => (i: number) => {
+      const arr = value()
+      if (Array.isArray(arr)) {
+        arr.splice(i, 1)
+      }
+    },
+    $insert: () => (val: unknown, i: number) => {
+      const arr = value()
+      if (Array.isArray(arr)) {
+        arr.splice(i, 0, val)
+      }
     },
   }
 
