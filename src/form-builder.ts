@@ -1,5 +1,5 @@
-import set from 'set-value'
-import get from 'get-value'
+import setValue from 'set-value'
+import getValue from 'get-value'
 import {
   FormGroup,
   Form,
@@ -9,9 +9,12 @@ import {
   GroupConfiguratorEquivalent,
   GroupState,
   IFormBuilder,
+  IArrayOperations,
+  FormElement,
 } from './types'
 
-const isInteger = (s: string): boolean => /^-{0,1}\d+$/.test(s)
+const isInteger = (s: unknown): boolean =>
+  typeof s === 'string' && /^-{0,1}\d+$/.test(s)
 
 type FormProxy<
   TForm extends Form,
@@ -23,26 +26,53 @@ type FormEvaluation<TForm extends Form> = (
   form: GroupState<TForm, TForm>,
   index: number
 ) => boolean
-type boolFunc<T> = (arg: T) => boolean
 
-function createProxy<TFormGroup extends FormGroup, TForm extends FormGroup>(
-  obj: TFormGroup,
+type EnhancementFuncs = AsFunc<Enhancements & IArrayOperations<FormGroup>>
+
+const ignoreList = [
+  '_vm',
+  'state',
+  'getters',
+  '_isVue',
+  'render',
+  'toJSON',
+  'length',
+  '__proto__',
+]
+
+function createProxy(
+  obj: FormGroup,
   path: Array<string> = [],
   requiredFuncs = new Map<string, () => boolean>(),
   activeFuncs = new Map<string, () => boolean>(),
-  root = (obj as unknown) as TForm,
-  state = {} as FormState<TForm>,
-  isRoot = true
-): FormProxy<TForm, TFormGroup> {
+  root = (obj as unknown) as Form,
+  state = {} as FormState<Form>,
+  isRoot = true,
+  enhancementMap = new Map<string, EnhancementFuncs>(),
+  proxyMap = new Map<string, FormProxy<Form, FormGroup>>()
+): FormProxy<Form, FormGroup> {
+  if (isRoot) {
+    const clone = Object.create(null)
+    Object.assign(clone, root)
+    root = clone
+  }
+
   const ret = new Proxy(obj, {
-    get(target: TFormGroup, key: string, receiver: unknown) {
-      if (key === 'length' && Array.isArray(target)) {
-        return target.length
+    get(target: FormGroup, key: string | number | symbol, receiver: unknown) {
+      if (
+        typeof key === 'symbol' ||
+        ignoreList.includes(key.toString()) ||
+        key.toString().startsWith('_') ||
+        (Array.isArray(target) && key in []) ||
+        key in {}
+      ) {
+        return Reflect.get(target, key, receiver)
       }
 
-      if (typeof key === 'string' && key.startsWith('$'))
-        return getEnhancements(
-          key,
+      key = key.toString()
+
+      if (key.startsWith('$')) {
+        const enhancements = getEnhancements(
           path,
           requiredFuncs,
           activeFuncs,
@@ -50,64 +80,191 @@ function createProxy<TFormGroup extends FormGroup, TForm extends FormGroup>(
           state,
           receiver
         )
-
-      let prop = target[key]
-      const newPath = [...path, key]
-
-      if (
-        Array.isArray(target) &&
-        target.length &&
-        typeof target[0][key] !== 'undefined'
-      ) {
-        prop = target[0][key]
+        const option = enhancements[key]
+        const val = option && option()
+        return val
       }
 
-      const propObj =
-        typeof prop === 'object' || Array.isArray(prop)
-          ? (prop as TFormGroup)
-          : (Object.create(null) as TFormGroup)
+      const newPath = [...path, key]
+
+      let prop = Reflect.get(target, key, receiver)
+      if (typeof prop === 'undefined') {
+        prop = Object.create(null)
+      }
+
+      if (
+        typeof prop === 'string' ||
+        typeof prop === 'number' ||
+        (Array.isArray(prop) &&
+          (typeof prop[0] === 'number' || typeof prop[0] === 'string'))
+      ) {
+        prop = Object.create(null)
+      }
 
       return createProxy(
-        propObj,
+        Object.create(prop),
         newPath,
         requiredFuncs,
         activeFuncs,
         root,
         state,
-        false
+        false,
+        enhancementMap,
+        proxyMap
       )
+
+      // return getOrDefault(proxyMap, newPathStr, () => {
+      //   if (typeof prop === 'object' || Array.isArray(prop)) {
+      //     const ding = Reflect.get(target, key, receiver)
+      //     return createProxy(
+      //       ding,
+      //       newPath,
+      //       requiredFuncs,
+      //       activeFuncs,
+      //       root,
+      //       state,
+      //       false
+      //     )
+      //   }
+
+      //   const enhancements = getOrDefault(enhancementMap, newPathStr, () =>
+      //     getEnhancements(
+      //       newPath,
+      //       requiredFuncs,
+      //       activeFuncs,
+      //       root,
+      //       state,
+      //       receiver
+      //     )
+      //   )
+      //   return new QuestionProxy(enhancements)
+      // })
     },
     set(
-      _target: TFormGroup,
-      key: string | number,
+      _target: unknown,
+      key: string | number | symbol,
       value: unknown,
-      receiver: FormProxy<TForm, TFormGroup>
+      receiver: Record<PropertyKey, unknown>
     ) {
-      if (key === '$value') {
-        const path = receiver.$path
-        if (typeof path !== 'string') {
-          throw 'could not find path for key ' + key
-        }
-        set(root, path, value)
-        return true
+      if (key === '$value' && hasOwnProperty(receiver, '$path', '')) {
+        setValue(root, receiver.$path, value)
       }
-
-      throw 'set not supported for key ' + key
+      return true
     },
   })
   if (isRoot) {
     Object.assign(state, ret)
   }
-  return (ret as unknown) as FormProxy<TForm, TFormGroup>
+  return (ret as unknown) as FormProxy<Form, FormGroup>
 }
 
-function getEnhancements<TForm extends Form>(
-  key: string,
+function hasOwnProperty<Y extends PropertyKey, Z>(
+  obj: Record<Y, unknown>,
+  prop: Y,
+  sampleVal: Z
+): obj is Record<Y, Z> {
+  const val = obj[prop]
+  return typeof val === typeof sampleVal
+}
+
+// class QuestionProxy {
+//   private _safePath: string[]
+//   private _index: number
+//   private _root: Record<string, FormElement>
+//   private _state: GroupState<
+//     Record<string, FormElement>,
+//     Record<string, FormElement>
+//   >
+//   private _requiredFuncs: Map<string, (index: number | undefined) => boolean>
+//   private _activeFuncs: Map<string, (index: number | undefined) => boolean>
+//   $path: string
+//   private _safePathString: string
+//   private _currentValue: any
+
+//   constructor(
+//     path: Array<string>,
+//     requiredFuncs: Map<string, (index: number | undefined) => boolean>,
+//     activeFuncs: Map<string, (index: number | undefined) => boolean>,
+//     root: Form,
+//     state: FormState<Form>
+//   ) {
+//     const lastNumberIndex: number = path
+//       .map((x) => isInteger(x))
+//       .lastIndexOf(true)
+
+//     this._safePath = path.filter((x) => !isInteger(x))
+//     this._safePathString = this._safePath.join('.')
+//     this._index =
+//       lastNumberIndex >= 0 ? Number.parseInt(path[lastNumberIndex]) : -1
+//     this.$path = path.join('.')
+//     this._root = root
+//     this._state = state
+//     this._requiredFuncs = requiredFuncs
+//     this._activeFuncs = activeFuncs
+//     this._currentValue = getValue(this._root, this.$path)
+//   }
+
+//   public get $value(): any {
+//     return this._currentValue
+//   }
+
+//   public set $value(value) {
+//     setValue(this._root, this.$path, value)
+//   }
+
+//   public $isRequiredWhen(func: FormEvaluation<Form>) {
+//     this._requiredFuncs.set(this._safePathString, (i: number | undefined) =>
+//       func(this._state, typeof i === 'undefined' ? -1 : i)
+//     )
+//     return this
+//   }
+
+//   public $isActiveWhen(func: FormEvaluation<Form>) {
+//     this._activeFuncs.set(this._safePathString, (i: number | undefined) =>
+//       func(this._state, typeof i === 'undefined' ? -1 : i)
+//     )
+//     return this
+//   }
+
+//   public get $isRequired() {
+//     return isRequiredRecursive(this._safePath, (s: string) =>
+//       getOrDefault(this._requiredFuncs, s, () => () => false)(this._index)
+//     )
+//   }
+
+//   public get $isActive() {
+//     return isActiveRecursive(this._safePath, (s: string) =>
+//       getOrDefault(this._activeFuncs, s, () => () => true)(this._index)
+//     )
+//   }
+
+//   public $isActiveAnd(func: (q: FormQuestion) => boolean) {
+//     return this.$isActive && func(this.$value)
+//   }
+// }
+
+type AsFunc<T> = {
+  [key in keyof T]: () => T[key]
+}
+
+type Enhancements = {
+  $isProxy: boolean
+  $root: Form
+  $path: string
+  $value: unknown
+  $isRequiredWhen: (func: FormEvaluation<Form>) => unknown
+  $isActiveWhen: (func: FormEvaluation<Form>) => unknown
+  $isRequired: boolean
+  $isActive: boolean
+  $isActiveAnd: (func: (q: FormQuestion) => boolean) => boolean
+} & Record<string, unknown>
+
+function getEnhancements(
   path: Array<string>,
   requiredFuncs: Map<string, (index: number | undefined) => boolean>,
   activeFuncs: Map<string, (index: number | undefined) => boolean>,
-  root: TForm,
-  state: FormState<TForm>,
+  root: Form,
+  state: FormState<Form>,
   receiver: unknown
 ) {
   const lastNumberIndex: number = path
@@ -119,43 +276,36 @@ function getEnhancements<TForm extends Form>(
 
   const currentPathString = path.join('.')
   const safePath = path.filter((x) => !isInteger(x))
+  const safePathString = safePath.join('.')
 
   const isActive = () =>
     isActiveRecursive(safePath, (s: string) =>
-      getOrDefault(activeFuncs, s, () => true)(index)
+      getOrDefault(activeFuncs, s, () => () => true)(index)
     )
 
   const isRequired = () =>
     isRequiredRecursive(safePath, (s: string) =>
-      getOrDefault(requiredFuncs, s, () => false)(index)
+      getOrDefault(requiredFuncs, s, () => () => false)(index)
     )
 
-  const value = () => get(root, currentPathString)
+  const value = () => {
+    const val = getValue(root, currentPathString)
+    return val
+  }
 
-  const options: Record<
-    string,
-    () =>
-      | boolean
-      | string
-      | TForm
-      | ((func: FormEvaluation<TForm>) => void)
-      | ((func: (q: FormQuestion) => boolean) => boolean)
-      | ((i: number) => void)
-      | ((val: unknown) => void)
-      | ((val: unknown, i: number) => void)
-  > = {
+  const options: EnhancementFuncs = {
     $isProxy: () => true,
     $root: () => root,
     $path: () => currentPathString,
     $value: value,
-    $isRequiredWhen: () => (func: FormEvaluation<TForm>) => {
-      requiredFuncs.set(currentPathString, (i: number | undefined) =>
+    $isRequiredWhen: () => (func: FormEvaluation<Form>) => {
+      requiredFuncs.set(safePathString, (i: number | undefined) =>
         func(state, typeof i === 'undefined' ? -1 : i)
       )
       return receiver
     },
-    $isActiveWhen: () => (func: FormEvaluation<TForm>) => {
-      activeFuncs.set(currentPathString, (i: number | undefined) =>
+    $isActiveWhen: () => (func: FormEvaluation<Form>) => {
+      activeFuncs.set(safePathString, (i: number | undefined) =>
         func(state, typeof i === 'undefined' ? -1 : i)
       )
       return receiver
@@ -163,7 +313,10 @@ function getEnhancements<TForm extends Form>(
     $isRequired: isRequired,
     $isActive: isActive,
     $isActiveAnd: () => (func: (q: FormQuestion) => boolean) => {
-      return isActive() && func(value())
+      const isA = isActive()
+      const val = value()
+      const evalSucceeded = func(val)
+      return isA && evalSucceeded
     },
     $append: () => (val: unknown) => {
       const arr = value()
@@ -177,21 +330,20 @@ function getEnhancements<TForm extends Form>(
         arr.splice(i, 1)
       }
     },
-    $insert: () => (val: unknown, i: number) => {
+    $insert: () => (i: number, val: FormGroup) => {
       const arr = value()
       if (Array.isArray(arr)) {
         arr.splice(i, 0, val)
       }
     },
   }
-
-  return options[key]()
+  return options
 }
 
-function getOrDefault<T, F>(map: Map<T, F>, index: T, otherwise: F): F {
+function getOrDefault<T, F>(map: Map<T, F>, index: T, otherwise: () => F): F {
   let found = map.get(index)
   if (typeof found === 'undefined') {
-    found = otherwise
+    found = otherwise()
     map.set(index, found)
   }
   return found
@@ -234,7 +386,7 @@ export function createFormBuilder<T extends Form>(form: T): IFormBuilder<T> {
   const proxy = createProxy(form)
   const ret: IFormBuilder<T> = {
     getState(): FormState<T> {
-      return proxy
+      return (proxy as unknown) as FormState<T>
     },
     getConfigurator(): FormConfig<T> {
       return (proxy as unknown) as FormConfig<T>

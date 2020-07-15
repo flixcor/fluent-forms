@@ -1,6 +1,6 @@
 {
   "name": "fluent-forms",
-  "version": "0.0.10",
+  "version": "0.0.12",
   "description": "",
   "keywords": [],
   "author": "Felix Cornelissen",
@@ -40,6 +40,10 @@
       ".(ts|tsx)": "ts-jest"
     },
     "testRegex": "(/__tests__/.*|\\.(test|spec))\\.(ts|tsx|js)$",
-    "moduleFileExtensions": ["ts", "tsx", "js"]
+    "moduleFileExtensions": [
+      "ts",
+      "tsx",
+      "js"
+    ]
   }
 }
