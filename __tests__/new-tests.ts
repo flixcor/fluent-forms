@@ -58,4 +58,13 @@ test('new tests', () => {
   expect(state.recurringGroup.length).toBe(1)
   expect(initial.recurringGroup?.length).toBe(1)
   expect(state.question3.$isActive).toBe(false)
+
+  state.recurringGroup.$insert(0, {
+    question4: 'answer to question 4',
+    group2: {
+      question5: 5,
+    },
+  })
+
+  expect(state.recurringGroup[1].$path).toBe('recurringGroup.1')
 })

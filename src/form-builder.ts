@@ -10,6 +10,8 @@ import {
   IArrayOperations,
   IDeffoBuilder,
   RecursivePartial,
+  IQuestionState,
+  FormElement,
 } from './types'
 
 import { defineProperty } from './utilities'
@@ -94,8 +96,8 @@ function boolFuncOrDefault(
 export function buildFormState<T extends FormGroup>(
   form: RecursivePartial<T>,
   config: FormConfig<T>,
-  path: string[] = [],
-  index = -1,
+  path: () => string[] = (): string[] => [],
+  index = (): number => -1,
   configMap = new Map<string, IDeffoBuilder<T>>(),
   isRoot = true,
   root = {} as FormState<T>
@@ -109,8 +111,8 @@ export function buildFormState<T extends FormGroup>(
   const entries = Object.entries(config)
     .filter(([key]) => !key.startsWith('$'))
     .map(([key, value]) => {
-      const newPath = [...path, key]
-      const pathStr = newPath.join('.')
+      const newPath = () => [...path(), key]
+      const pathStr = newPath().join('.')
 
       if (Array.isArray(value) && typeof value[0] === 'object') {
         let formGroups = getValue(form, pathStr)
@@ -145,8 +147,8 @@ export function buildFormState<T extends FormGroup>(
 
       return [key, state]
     })
-  const safePath = path.filter((x) => !isInteger(x))
-  const pathStr = path.join('.')
+  const safePath = path().filter((x) => !isInteger(x))
+  const pathStr = () => path().join('.')
   const safePathStr = safePath.join('.')
 
   const { $isActive, $isRequired } = config
@@ -155,18 +157,18 @@ export function buildFormState<T extends FormGroup>(
 
   configMap.set(safePathStr, { $isActive: _isActive, $isRequired: _isRequired })
 
-  const getVal = () => getValue(form, pathStr)
-  const setVal = (val: unknown) => setValue(form, pathStr, val)
+  const getVal = () => getValue(form, pathStr())
+  const setVal = (val: unknown) => setValue(form, pathStr(), val)
   const isActiveFunc = () =>
     isActiveRecursive(safePath, (p: string) => {
       const { $isActive } = getConfigOrDefault(p)
-      return $isActive(root, index)
+      return $isActive(root, index())
     })
 
   const isRequiredFunc = () =>
     isRequiredRecursive(safePath, (p: string) => {
       const { $isRequired } = getConfigOrDefault(p)
-      return $isRequired(root, index)
+      return $isRequired(root, index())
     })
 
   const el = new ElementState(
@@ -192,19 +194,19 @@ function buildRecurring<T extends FormGroup>(
   config: FormConfig<T>,
   formGroups: T[],
   groupConfig: FormConfig<T>,
-  path: string[],
+  path: () => string[],
   configMap: Map<string, IDeffoBuilder<T>>,
   root: FormState<T>
 ): Array<GroupState<T, T>> & IArrayOperations<T> {
   const { $isActive, $isRequired } = groupConfig
   const _isActive = boolFuncOrDefault($isActive, () => true)
   const _isRequired = boolFuncOrDefault($isRequired, () => false)
-  const safePath = path.filter((x) => !isInteger(x))
+  const safePath = path().filter((x) => !isInteger(x))
   const pathStr = safePath.join('.')
   configMap.set(pathStr, { $isActive: _isActive, $isRequired: _isRequired })
 
-  const mapper = (i: number) => {
-    const newPath = [...path, i.toString()]
+  const mapper = (i: () => number) => {
+    const newPath = () => [...path(), i().toString()]
 
     const sub = buildFormState(
       form,
@@ -219,25 +221,24 @@ function buildRecurring<T extends FormGroup>(
     return sub
   }
 
-  const arr = formGroups.map((_, i) => mapper(i))
+  const arr = formGroups.map((x, _, a) => mapper(() => a.indexOf(x)))
 
   defineProperty(arr, '$path', {
-    value: path.join('.'),
-    writable: false,
+    get: () => path().join('.'),
     enumerable: false,
   })
 
   defineProperty(arr, '$append', {
     value: (val: T) => {
       formGroups.push(val)
-      arr.push(mapper(formGroups.length - 1))
+      ;(arr as GroupState<T, T>[]).push(mapper(() => formGroups.indexOf(val)))
     },
     writable: false,
     enumerable: false,
   })
   defineProperty(arr, '$remove', {
     value: (index: number) => {
-      arr.splice(index, 1)
+      (arr as GroupState<T, T>[]).splice(index, 1)
       formGroups.splice(index, 1)
     },
     writable: false,
@@ -246,7 +247,11 @@ function buildRecurring<T extends FormGroup>(
   defineProperty(arr, '$insert', {
     value: (index: number, val: T) => {
       formGroups.splice(1, index, val)
-      arr.splice(1, index, mapper(index))
+      ;(arr as GroupState<T, T>[]).splice(
+        1,
+        index,
+        mapper(() => formGroups.indexOf(val))
+      )
     },
     writable: false,
     enumerable: false,
@@ -255,31 +260,35 @@ function buildRecurring<T extends FormGroup>(
   return arr
 }
 
-class ElementState {
+class ElementState implements IQuestionState<FormElement> {
   private _isActiveFunc: () => boolean
   private _getValueFunc: () => unknown
-  path: string
+  private _pathFunc: () => string
   private _setValueFunc: (val: unknown) => void
   private _isRequiredFunc: () => boolean
 
   constructor(
-    path: string,
+    path: () => string,
     getValueFunc: () => unknown,
     setValueFunc: (val: unknown) => void,
     isActiveFunc: () => boolean,
     isRequiredFunc: () => boolean
   ) {
-    this.path = path
+    this._pathFunc = path
     this._getValueFunc = getValueFunc
     this._setValueFunc = setValueFunc
     this._isActiveFunc = isActiveFunc
     this._isRequiredFunc = isRequiredFunc
   }
 
-  public get $value(): unknown {
-    return this._getValueFunc()
+  public get $path(): string {
+    return this._pathFunc()
   }
-  public set $value(val: unknown) {
+
+  public get $value(): FormElement {
+    return this._getValueFunc() as FormElement
+  }
+  public set $value(val: FormElement) {
     this._setValueFunc(val)
   }
   public get $isActive(): boolean {
@@ -288,8 +297,8 @@ class ElementState {
   public get $isRequired(): boolean {
     return this._isRequiredFunc()
   }
-  public $isActiveAnd(func: (val: unknown) => boolean): boolean {
-    const val = this._getValueFunc()
+  public $isActiveAnd(func: (val: FormElement) => boolean): boolean {
+    const val = this._getValueFunc() as FormElement
     return this._isActiveFunc() && func(val)
   }
 }
