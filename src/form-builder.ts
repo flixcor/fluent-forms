@@ -4,345 +4,20 @@ import {
   FormGroup,
   Form,
   FormState,
-  FormQuestion,
   FormConfig,
-  GroupConfiguratorEquivalent,
   GroupState,
   IFormBuilder,
   IArrayOperations,
-  FormElement,
+  IDeffoBuilder,
+  RecursivePartial,
 } from './types'
 
-export const isInteger = (s: unknown): boolean =>
+import { defineProperty } from './utilities'
+
+const isInteger = (s: unknown): boolean =>
   typeof s === 'string' && /^-{0,1}\d+$/.test(s)
 
-type FormProxy<
-  TForm extends Form,
-  TFormGroup extends FormGroup
-> = GroupConfiguratorEquivalent<TForm, TFormGroup> &
-  GroupState<TForm, TFormGroup>
-
-type FormEvaluation<TForm extends Form> = (
-  form: GroupState<TForm, TForm>,
-  index: number
-) => boolean
-
-type EnhancementFuncs = AsFunc<Enhancements & IArrayOperations<FormGroup>>
-
-const ignoreList = [
-  '_vm',
-  'state',
-  'getters',
-  '_isVue',
-  'render',
-  'toJSON',
-  'length',
-  '__proto__',
-]
-
-function createProxy(
-  obj: FormGroup,
-  path: Array<string> = [],
-  requiredFuncs = new Map<string, () => boolean>(),
-  activeFuncs = new Map<string, () => boolean>(),
-  root = (obj as unknown) as Form,
-  state = {} as FormState<Form>,
-  isRoot = true,
-  enhancementMap = new Map<string, EnhancementFuncs>(),
-  proxyMap = new Map<string, FormProxy<Form, FormGroup>>()
-): FormProxy<Form, FormGroup> {
-  if (isRoot) {
-    const clone = Object.create(null)
-    Object.assign(clone, root)
-    root = clone
-  }
-
-  const ret = new Proxy(obj, {
-    get(target: FormGroup, key: string | number | symbol, receiver: unknown) {
-      if (
-        typeof key !== 'string' ||
-        ignoreList.includes(key.toString()) ||
-        key.toString().startsWith('_') ||
-        (Array.isArray(target) && key in []) ||
-        key in {}
-      ) {
-        return Reflect.get(target, key, receiver)
-      }
-
-      if (key.startsWith('$')) {
-        const enhancements = getEnhancements(
-          path,
-          requiredFuncs,
-          activeFuncs,
-          root,
-          state,
-          receiver
-        )
-        const option = enhancements[key]
-        const val = option && option()
-        return val
-      }
-
-      const newPath = [...path, key]
-
-      let prop = Reflect.get(target, key, receiver)
-      if (typeof prop === 'undefined') {
-        prop = Object.create(null)
-      }
-
-      if (
-        typeof prop === 'string' ||
-        typeof prop === 'number' ||
-        (Array.isArray(prop) &&
-          (typeof prop[0] === 'number' || typeof prop[0] === 'string'))
-      ) {
-        prop = Object.create(null)
-      }
-
-      return createProxy(
-        Object.create(prop),
-        newPath,
-        requiredFuncs,
-        activeFuncs,
-        root,
-        state,
-        false,
-        enhancementMap,
-        proxyMap
-      )
-
-      // return getOrDefault(proxyMap, newPathStr, () => {
-      //   if (typeof prop === 'object' || Array.isArray(prop)) {
-      //     const ding = Reflect.get(target, key, receiver)
-      //     return createProxy(
-      //       ding,
-      //       newPath,
-      //       requiredFuncs,
-      //       activeFuncs,
-      //       root,
-      //       state,
-      //       false
-      //     )
-      //   }
-
-      //   const enhancements = getOrDefault(enhancementMap, newPathStr, () =>
-      //     getEnhancements(
-      //       newPath,
-      //       requiredFuncs,
-      //       activeFuncs,
-      //       root,
-      //       state,
-      //       receiver
-      //     )
-      //   )
-      //   return new QuestionProxy(enhancements)
-      // })
-    },
-    set(
-      _target: unknown,
-      key: string | number | symbol,
-      value: unknown,
-      receiver: Record<PropertyKey, unknown>
-    ) {
-      if (key === '$value' && hasOwnProperty(receiver, '$path', '')) {
-        setValue(root, receiver.$path, value)
-      }
-      return true
-    },
-  })
-  if (isRoot) {
-    Object.assign(state, ret)
-  }
-  return (ret as unknown) as FormProxy<Form, FormGroup>
-}
-
-function hasOwnProperty<Y extends PropertyKey, Z>(
-  obj: Record<Y, unknown>,
-  prop: Y,
-  sampleVal: Z
-): obj is Record<Y, Z> {
-  const val = obj[prop]
-  return typeof val === typeof sampleVal
-}
-
-// class QuestionProxy {
-//   private _safePath: string[]
-//   private _index: number
-//   private _root: Record<string, FormElement>
-//   private _state: GroupState<
-//     Record<string, FormElement>,
-//     Record<string, FormElement>
-//   >
-//   private _requiredFuncs: Map<string, (index: number | undefined) => boolean>
-//   private _activeFuncs: Map<string, (index: number | undefined) => boolean>
-//   $path: string
-//   private _safePathString: string
-//   private _currentValue: any
-
-//   constructor(
-//     path: Array<string>,
-//     requiredFuncs: Map<string, (index: number | undefined) => boolean>,
-//     activeFuncs: Map<string, (index: number | undefined) => boolean>,
-//     root: Form,
-//     state: FormState<Form>
-//   ) {
-//     const lastNumberIndex: number = path
-//       .map((x) => isInteger(x))
-//       .lastIndexOf(true)
-
-//     this._safePath = path.filter((x) => !isInteger(x))
-//     this._safePathString = this._safePath.join('.')
-//     this._index =
-//       lastNumberIndex >= 0 ? Number.parseInt(path[lastNumberIndex]) : -1
-//     this.$path = path.join('.')
-//     this._root = root
-//     this._state = state
-//     this._requiredFuncs = requiredFuncs
-//     this._activeFuncs = activeFuncs
-//     this._currentValue = getValue(this._root, this.$path)
-//   }
-
-//   public get $value(): any {
-//     return this._currentValue
-//   }
-
-//   public set $value(value) {
-//     setValue(this._root, this.$path, value)
-//   }
-
-//   public $isRequiredWhen(func: FormEvaluation<Form>) {
-//     this._requiredFuncs.set(this._safePathString, (i: number | undefined) =>
-//       func(this._state, typeof i === 'undefined' ? -1 : i)
-//     )
-//     return this
-//   }
-
-//   public $isActiveWhen(func: FormEvaluation<Form>) {
-//     this._activeFuncs.set(this._safePathString, (i: number | undefined) =>
-//       func(this._state, typeof i === 'undefined' ? -1 : i)
-//     )
-//     return this
-//   }
-
-//   public get $isRequired() {
-//     return isRequiredRecursive(this._safePath, (s: string) =>
-//       getOrDefault(this._requiredFuncs, s, () => () => false)(this._index)
-//     )
-//   }
-
-//   public get $isActive() {
-//     return isActiveRecursive(this._safePath, (s: string) =>
-//       getOrDefault(this._activeFuncs, s, () => () => true)(this._index)
-//     )
-//   }
-
-//   public $isActiveAnd(func: (q: FormQuestion) => boolean) {
-//     return this.$isActive && func(this.$value)
-//   }
-// }
-
-type AsFunc<T> = {
-  [key in keyof T]: () => T[key]
-}
-
-type Enhancements = {
-  $isProxy: boolean
-  $root: Form
-  $path: string
-  $value: unknown
-  $isRequiredWhen: (func: FormEvaluation<Form>) => unknown
-  $isActiveWhen: (func: FormEvaluation<Form>) => unknown
-  $isRequired: boolean
-  $isActive: boolean
-  $isActiveAnd: (func: (q: FormQuestion) => boolean) => boolean
-} & Record<string, unknown>
-
-function getEnhancements(
-  path: Array<string>,
-  requiredFuncs: Map<string, (index: number | undefined) => boolean>,
-  activeFuncs: Map<string, (index: number | undefined) => boolean>,
-  root: Form,
-  state: FormState<Form>,
-  receiver: unknown
-) {
-  const lastNumberIndex: number = path
-    .map((x) => isInteger(x))
-    .lastIndexOf(true)
-
-  const index =
-    lastNumberIndex >= 0 ? Number.parseInt(path[lastNumberIndex]) : undefined
-
-  const currentPathString = path.join('.')
-  const safePath = path.filter((x) => !isInteger(x))
-  const safePathString = safePath.join('.')
-
-  const isActive = () =>
-    isActiveRecursive(safePath, (s: string) =>
-      getOrDefault(activeFuncs, s, () => () => true)(index)
-    )
-
-  const isRequired = () =>
-    isRequiredRecursive(safePath, (s: string) =>
-      getOrDefault(requiredFuncs, s, () => () => false)(index)
-    )
-
-  const value = () => {
-    const val = getValue(root, currentPathString)
-    return val
-  }
-
-  const options: EnhancementFuncs = {
-    $isProxy: () => true,
-    $root: () => root,
-    $path: () => currentPathString,
-    $value: value,
-    $isRequiredWhen: () => (func: FormEvaluation<Form>) => {
-      requiredFuncs.set(safePathString, (i: number | undefined) =>
-        func(state, typeof i === 'undefined' ? -1 : i)
-      )
-      return receiver
-    },
-    $isActiveWhen: () => (func: FormEvaluation<Form>) => {
-      activeFuncs.set(safePathString, (i: number | undefined) =>
-        func(state, typeof i === 'undefined' ? -1 : i)
-      )
-      return receiver
-    },
-    $isRequired: isRequired,
-    $isActive: isActive,
-    $isActiveAnd: () => (func: (q: FormQuestion) => boolean) => {
-      const isA = isActive()
-      const val = value()
-      const evalSucceeded = func(val)
-      return isA && evalSucceeded
-    },
-    $append: () => (val: unknown) => {
-      const arr = value()
-      if (Array.isArray(arr)) {
-        arr.push(val)
-      }
-    },
-    $remove: () => (i: number) => {
-      const arr = value()
-      if (Array.isArray(arr)) {
-        arr.splice(i, 1)
-      }
-    },
-    $insert: () => (i: number, val: FormGroup) => {
-      const arr = value()
-      if (Array.isArray(arr)) {
-        arr.splice(i, 0, val)
-      }
-    },
-  }
-  return options
-}
-
-export function getOrDefault<T, F>(
-  map: Map<T, F>,
-  index: T,
-  otherwise: () => F
-): F {
+function getOrDefault<T, F>(map: Map<T, F>, index: T, otherwise: () => F): F {
   let found = map.get(index)
   if (typeof found === 'undefined') {
     found = otherwise()
@@ -351,7 +26,7 @@ export function getOrDefault<T, F>(
   return found
 }
 
-export function isActiveRecursive(
+function isActiveRecursive(
   path: string[],
   isActiveFunc: (p: string) => boolean,
   level = 0
@@ -367,7 +42,7 @@ export function isActiveRecursive(
   )
 }
 
-export function isRequiredRecursive(
+function isRequiredRecursive(
   path: string[],
   isRequiredFunc: (p: string) => boolean,
   level = 0
@@ -384,18 +59,237 @@ export function isRequiredRecursive(
   )
 }
 
-export function createFormBuilder<T extends Form>(form: T): IFormBuilder<T> {
-  const proxy = createProxy(form)
+export function createFormBuilder<T extends Form>(
+  form: RecursivePartial<T>,
+  config: FormConfig<T>
+): IFormBuilder<T> {
+  const state = buildFormState(form, config)
   const ret: IFormBuilder<T> = {
     getState(): FormState<T> {
-      return (proxy as unknown) as FormState<T>
+      return (state as unknown) as FormState<T>
     },
     getConfigurator(): FormConfig<T> {
-      return (proxy as unknown) as FormConfig<T>
+      return (config as unknown) as FormConfig<T>
     },
-    getForm(): T {
+    getForm(): RecursivePartial<T> {
       return form
     },
   }
   return ret
+}
+
+function boolFuncOrDefault(
+  val: unknown,
+  def: () => boolean
+): (val: unknown, i: number) => boolean {
+  if (typeof val === 'undefined') {
+    return def
+  }
+  if (typeof val === 'boolean') {
+    return () => val
+  }
+  return val as (val: unknown, i: number) => boolean
+}
+
+export function buildFormState<T extends FormGroup>(
+  form: RecursivePartial<T>,
+  config: FormConfig<T>,
+  path: string[] = [],
+  index = -1,
+  configMap = new Map<string, IDeffoBuilder<T>>(),
+  isRoot = true,
+  root = {} as FormState<T>
+): FormState<T> {
+  const getConfigOrDefault = (p: string) =>
+    getOrDefault(configMap, p, () => ({
+      $isRequired: () => false,
+      $isActive: () => true,
+    }))
+
+  const entries = Object.entries(config)
+    .filter(([key]) => !key.startsWith('$'))
+    .map(([key, value]) => {
+      const newPath = [...path, key]
+      const pathStr = newPath.join('.')
+
+      if (Array.isArray(value) && typeof value[0] === 'object') {
+        let formGroups = getValue(form, pathStr)
+        if (typeof formGroups === 'undefined') {
+          formGroups = []
+          setValue(form, pathStr, formGroups)
+        }
+        const groupConfig = value[0]
+        return [
+          key,
+          buildRecurring(
+            form,
+            config,
+            formGroups,
+            groupConfig,
+            newPath,
+            configMap,
+            root
+          ),
+        ]
+      }
+
+      const state = buildFormState(
+        form,
+        (value as unknown) as FormConfig<T>,
+        newPath,
+        index,
+        configMap,
+        false,
+        root
+      )
+
+      return [key, state]
+    })
+  const safePath = path.filter((x) => !isInteger(x))
+  const pathStr = path.join('.')
+  const safePathStr = safePath.join('.')
+
+  const { $isActive, $isRequired } = config
+  const _isActive = boolFuncOrDefault($isActive, () => true)
+  const _isRequired = boolFuncOrDefault($isRequired, () => false)
+
+  configMap.set(safePathStr, { $isActive: _isActive, $isRequired: _isRequired })
+
+  const getVal = () => getValue(form, pathStr)
+  const setVal = (val: unknown) => setValue(form, pathStr, val)
+  const isActiveFunc = () =>
+    isActiveRecursive(safePath, (p: string) => {
+      const { $isActive } = getConfigOrDefault(p)
+      return $isActive(root, index)
+    })
+
+  const isRequiredFunc = () =>
+    isRequiredRecursive(safePath, (p: string) => {
+      const { $isRequired } = getConfigOrDefault(p)
+      return $isRequired(root, index)
+    })
+
+  const el = new ElementState(
+    safePathStr,
+    getVal,
+    setVal,
+    isActiveFunc,
+    isRequiredFunc
+  )
+
+  const fromEntries = Object.fromEntries(entries)
+  Object.assign(el, fromEntries)
+
+  if (isRoot) {
+    Object.assign(root, el)
+  }
+
+  return (el as unknown) as FormState<T>
+}
+
+function buildRecurring<T extends FormGroup>(
+  form: RecursivePartial<T>,
+  config: FormConfig<T>,
+  formGroups: T[],
+  groupConfig: FormConfig<T>,
+  path: string[],
+  configMap: Map<string, IDeffoBuilder<T>>,
+  root: FormState<T>
+): Array<GroupState<T, T>> & IArrayOperations<T> {
+  const { $isActive, $isRequired } = groupConfig
+  const _isActive = boolFuncOrDefault($isActive, () => true)
+  const _isRequired = boolFuncOrDefault($isRequired, () => false)
+  const safePath = path.filter((x) => !isInteger(x))
+  const pathStr = safePath.join('.')
+  configMap.set(pathStr, { $isActive: _isActive, $isRequired: _isRequired })
+
+  const mapper = (i: number) => {
+    const newPath = [...path, i.toString()]
+
+    const sub = buildFormState(
+      form,
+      groupConfig,
+      newPath,
+      i,
+      configMap,
+      false,
+      root
+    )
+
+    return sub
+  }
+
+  const arr = formGroups.map((_, i) => mapper(i))
+
+  defineProperty(arr, '$path', {
+    value: path.join('.'),
+    writable: false,
+    enumerable: false,
+  })
+
+  defineProperty(arr, '$append', {
+    value: (val: T) => {
+      formGroups.push(val)
+      arr.push(mapper(formGroups.length - 1))
+    },
+    writable: false,
+    enumerable: false,
+  })
+  defineProperty(arr, '$remove', {
+    value: (index: number) => {
+      arr.splice(index, 1)
+      formGroups.splice(index, 1)
+    },
+    writable: false,
+    enumerable: false,
+  })
+  defineProperty(arr, '$insert', {
+    value: (index: number, val: T) => {
+      formGroups.splice(1, index, val)
+      arr.splice(1, index, mapper(index))
+    },
+    writable: false,
+    enumerable: false,
+  })
+
+  return arr
+}
+
+class ElementState {
+  private _isActiveFunc: () => boolean
+  private _getValueFunc: () => unknown
+  path: string
+  private _setValueFunc: (val: unknown) => void
+  private _isRequiredFunc: () => boolean
+
+  constructor(
+    path: string,
+    getValueFunc: () => unknown,
+    setValueFunc: (val: unknown) => void,
+    isActiveFunc: () => boolean,
+    isRequiredFunc: () => boolean
+  ) {
+    this.path = path
+    this._getValueFunc = getValueFunc
+    this._setValueFunc = setValueFunc
+    this._isActiveFunc = isActiveFunc
+    this._isRequiredFunc = isRequiredFunc
+  }
+
+  public get $value(): unknown {
+    return this._getValueFunc()
+  }
+  public set $value(val: unknown) {
+    this._setValueFunc(val)
+  }
+  public get $isActive(): boolean {
+    return this._isActiveFunc()
+  }
+  public get $isRequired(): boolean {
+    return this._isRequiredFunc()
+  }
+  public $isActiveAnd(func: (val: unknown) => boolean): boolean {
+    const val = this._getValueFunc()
+    return this._isActiveFunc() && func(val)
+  }
 }

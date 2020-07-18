@@ -1,8 +1,8 @@
 // https://fettblog.eu/typescript-assertion-signatures/
 
 type InferValue<Prop extends PropertyKey, Desc> = Desc extends {
-  get(): any
-  value: any
+  get(): unknown
+  value: unknown
 }
   ? never
   : Desc extends { value: infer T }
@@ -14,9 +14,9 @@ type InferValue<Prop extends PropertyKey, Desc> = Desc extends {
 type DefineProperty<
   Prop extends PropertyKey,
   Desc extends PropertyDescriptor
-> = Desc extends { writable: any; set(val: any): any }
+> = Desc extends { writable: unknown; set(val: unknown): unknown }
   ? never
-  : Desc extends { writable: any; get(): any }
+  : Desc extends { writable: unknown; get(): unknown }
   ? never
   : Desc extends { writable: false }
   ? Readonly<InferValue<Prop, Desc>>
