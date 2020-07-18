@@ -13,7 +13,7 @@ import {
   FormElement,
 } from './types'
 
-const isInteger = (s: unknown): boolean =>
+export const isInteger = (s: unknown): boolean =>
   typeof s === 'string' && /^-{0,1}\d+$/.test(s)
 
 type FormProxy<
@@ -60,7 +60,7 @@ function createProxy(
   const ret = new Proxy(obj, {
     get(target: FormGroup, key: string | number | symbol, receiver: unknown) {
       if (
-        typeof key === 'symbol' ||
+        typeof key !== 'string' ||
         ignoreList.includes(key.toString()) ||
         key.toString().startsWith('_') ||
         (Array.isArray(target) && key in []) ||
@@ -68,8 +68,6 @@ function createProxy(
       ) {
         return Reflect.get(target, key, receiver)
       }
-
-      key = key.toString()
 
       if (key.startsWith('$')) {
         const enhancements = getEnhancements(
@@ -340,7 +338,11 @@ function getEnhancements(
   return options
 }
 
-function getOrDefault<T, F>(map: Map<T, F>, index: T, otherwise: () => F): F {
+export function getOrDefault<T, F>(
+  map: Map<T, F>,
+  index: T,
+  otherwise: () => F
+): F {
   let found = map.get(index)
   if (typeof found === 'undefined') {
     found = otherwise()
@@ -349,7 +351,7 @@ function getOrDefault<T, F>(map: Map<T, F>, index: T, otherwise: () => F): F {
   return found
 }
 
-function isActiveRecursive(
+export function isActiveRecursive(
   path: string[],
   isActiveFunc: (p: string) => boolean,
   level = 0
@@ -365,7 +367,7 @@ function isActiveRecursive(
   )
 }
 
-function isRequiredRecursive(
+export function isRequiredRecursive(
   path: string[],
   isRequiredFunc: (p: string) => boolean,
   level = 0
