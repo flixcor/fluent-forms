@@ -170,7 +170,7 @@ export function buildFormState<T extends FormGroup>(
     })
 
   const el = new ElementState(
-    safePathStr,
+    pathStr,
     getVal,
     setVal,
     isActiveFunc,
