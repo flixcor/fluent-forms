@@ -100,13 +100,51 @@ export function buildFormState<T extends FormGroup>(
   index = (): number => -1,
   configMap = new Map<string, IDeffoBuilder<T>>(),
   isRoot = true,
-  root = {} as FormState<T>
+  root = {} as FormState<T>,
+  stateArr: ElementState[] = []
 ): FormState<T> {
   const getConfigOrDefault = (p: string) =>
     getOrDefault(configMap, p, () => ({
       $isRequired: () => false,
       $isActive: () => true,
     }))
+
+  const safePath = path().filter((x) => !isInteger(x))
+  const pathStr = () => path().join('.')
+  const safePathStr = safePath.join('.')
+
+  const { $isActive, $isRequired } = config
+  const _isActive = boolFuncOrDefault($isActive, () => true)
+  const _isRequired = boolFuncOrDefault($isRequired, () => false)
+
+  configMap.set(safePathStr, { $isActive: _isActive, $isRequired: _isRequired })
+
+  const getVal = () => getValue(form, pathStr())
+  const setVal = (val: unknown) => {
+    setValue(form, pathStr(), val)
+  }
+  const isActiveFunc = () =>
+    isActiveRecursive(safePath, (p: string) => {
+      const { $isActive } = getConfigOrDefault(p)
+      return $isActive(root, index())
+    })
+
+  const isRequiredFunc = () =>
+    isRequiredRecursive(safePath, (p: string) => {
+      const { $isRequired } = getConfigOrDefault(p)
+      return $isRequired(root, index())
+    })
+
+  const el = new ElementState(
+    pathStr,
+    getVal,
+    setVal,
+    isActiveFunc,
+    isRequiredFunc,
+    stateArr
+  )
+
+  stateArr.push(el)
 
   const entries = Object.entries(config)
     .filter(([key]) => !key.startsWith('$'))
@@ -130,7 +168,8 @@ export function buildFormState<T extends FormGroup>(
             groupConfig,
             newPath,
             configMap,
-            root
+            root,
+            stateArr
           ),
         ]
       }
@@ -142,42 +181,12 @@ export function buildFormState<T extends FormGroup>(
         index,
         configMap,
         false,
-        root
+        root,
+        stateArr
       )
 
       return [key, state]
     })
-  const safePath = path().filter((x) => !isInteger(x))
-  const pathStr = () => path().join('.')
-  const safePathStr = safePath.join('.')
-
-  const { $isActive, $isRequired } = config
-  const _isActive = boolFuncOrDefault($isActive, () => true)
-  const _isRequired = boolFuncOrDefault($isRequired, () => false)
-
-  configMap.set(safePathStr, { $isActive: _isActive, $isRequired: _isRequired })
-
-  const getVal = () => getValue(form, pathStr())
-  const setVal = (val: unknown) => setValue(form, pathStr(), val)
-  const isActiveFunc = () =>
-    isActiveRecursive(safePath, (p: string) => {
-      const { $isActive } = getConfigOrDefault(p)
-      return $isActive(root, index())
-    })
-
-  const isRequiredFunc = () =>
-    isRequiredRecursive(safePath, (p: string) => {
-      const { $isRequired } = getConfigOrDefault(p)
-      return $isRequired(root, index())
-    })
-
-  const el = new ElementState(
-    pathStr,
-    getVal,
-    setVal,
-    isActiveFunc,
-    isRequiredFunc
-  )
 
   const fromEntries = Object.fromEntries(entries)
   Object.assign(el, fromEntries)
@@ -196,7 +205,8 @@ function buildRecurring<T extends FormGroup>(
   groupConfig: FormConfig<T>,
   path: () => string[],
   configMap: Map<string, IDeffoBuilder<T>>,
-  root: FormState<T>
+  root: FormState<T>,
+  stateArr: ElementState[]
 ): Array<GroupState<T, T>> & IArrayOperations<T> {
   const { $isActive, $isRequired } = groupConfig
   const _isActive = boolFuncOrDefault($isActive, () => true)
@@ -215,7 +225,8 @@ function buildRecurring<T extends FormGroup>(
       i,
       configMap,
       false,
-      root
+      root,
+      stateArr
     )
 
     return sub
@@ -266,19 +277,23 @@ class ElementState implements IQuestionState<FormElement> {
   private _pathFunc: () => string
   private _setValueFunc: (val: unknown) => void
   private _isRequiredFunc: () => boolean
+  $key = 0
+  private _stateArr: ElementState[]
 
   constructor(
     path: () => string,
     getValueFunc: () => unknown,
     setValueFunc: (val: unknown) => void,
     isActiveFunc: () => boolean,
-    isRequiredFunc: () => boolean
+    isRequiredFunc: () => boolean,
+    stateArr: ElementState[]
   ) {
     this._pathFunc = path
     this._getValueFunc = getValueFunc
     this._setValueFunc = setValueFunc
     this._isActiveFunc = isActiveFunc
     this._isRequiredFunc = isRequiredFunc
+    this._stateArr = stateArr
   }
 
   public get $path(): string {
@@ -290,6 +305,8 @@ class ElementState implements IQuestionState<FormElement> {
   }
   public set $value(val: FormElement) {
     this._setValueFunc(val)
+    const ownIndex = this._stateArr.indexOf(this)
+    this._stateArr.filter((_, i) => i !== ownIndex).forEach((s) => s.$key++)
   }
   public get $isActive(): boolean {
     return this._isActiveFunc()
