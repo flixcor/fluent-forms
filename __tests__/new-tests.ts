@@ -66,5 +66,5 @@ test('new tests', () => {
     },
   })
 
-  expect(state.recurringGroup[1].$path).toBe('recurringGroup.1')
+  expect(state.recurringGroup[1].$path).toBe('recurringGroup[1]')
 })

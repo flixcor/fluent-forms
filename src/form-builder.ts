@@ -65,7 +65,13 @@ export function createFormBuilder<T extends Form>(
   form: RecursivePartial<T>,
   config: FormConfig<T>
 ): IFormBuilder<T> {
-  const state = buildFormState(form, config)
+  let state: FormState<T> | null = null
+  try {
+    state = buildFormState(form, config)
+  } catch (error) {
+    console.log(error)
+  }
+
   const ret: IFormBuilder<T> = {
     getState(): FormState<T> {
       return (state as unknown) as FormState<T>
@@ -112,6 +118,11 @@ export function buildFormState<T extends FormGroup>(
   const safePath = path().filter((x) => !isInteger(x))
   const pathStr = () => path().join('.')
   const safePathStr = safePath.join('.')
+  const name = () =>
+    path()
+      .map((x) => (isInteger(x) ? `[${x}]` : x))
+      .join('.')
+      .replace(/\.\[/g, '[')
 
   const { $isActive, $isRequired } = config
   const _isActive = boolFuncOrDefault($isActive, () => true)
@@ -136,7 +147,7 @@ export function buildFormState<T extends FormGroup>(
     })
 
   const el = new ElementState(
-    pathStr,
+    name,
     getVal,
     setVal,
     isActiveFunc,
@@ -193,6 +204,7 @@ export function buildFormState<T extends FormGroup>(
 
   if (isRoot) {
     Object.assign(root, el)
+    stateArr.forEach((s) => s.evaluate())
   }
 
   return (el as unknown) as FormState<T>
@@ -242,14 +254,14 @@ function buildRecurring<T extends FormGroup>(
   defineProperty(arr, '$append', {
     value: (val: T) => {
       formGroups.push(val)
-      ;(arr as GroupState<T, T>[]).push(mapper(() => formGroups.indexOf(val)))
+      arr.push(mapper(() => formGroups.indexOf(val)))
     },
     writable: false,
     enumerable: false,
   })
   defineProperty(arr, '$remove', {
     value: (index: number) => {
-      (arr as GroupState<T, T>[]).splice(index, 1)
+      arr.splice(index, 1)
       formGroups.splice(index, 1)
     },
     writable: false,
@@ -258,7 +270,7 @@ function buildRecurring<T extends FormGroup>(
   defineProperty(arr, '$insert', {
     value: (index: number, val: T) => {
       formGroups.splice(1, index, val)
-      ;(arr as GroupState<T, T>[]).splice(
+      arr.splice(
         1,
         index,
         mapper(() => formGroups.indexOf(val))
@@ -277,8 +289,9 @@ class ElementState implements IQuestionState<FormElement> {
   private _pathFunc: () => string
   private _setValueFunc: (val: unknown) => void
   private _isRequiredFunc: () => boolean
-  $key = 0
   private _stateArr: ElementState[]
+  $isActive = true
+  $isRequired = false
 
   constructor(
     path: () => string,
@@ -296,6 +309,11 @@ class ElementState implements IQuestionState<FormElement> {
     this._stateArr = stateArr
   }
 
+  public evaluate(): void {
+    this.$isActive = this._isActiveFunc()
+    this.$isRequired = this._isRequiredFunc()
+  }
+
   public get $path(): string {
     return this._pathFunc()
   }
@@ -306,14 +324,9 @@ class ElementState implements IQuestionState<FormElement> {
   public set $value(val: FormElement) {
     this._setValueFunc(val)
     const ownIndex = this._stateArr.indexOf(this)
-    this._stateArr.filter((_, i) => i !== ownIndex).forEach((s) => s.$key++)
+    this._stateArr.filter((_, i) => i !== ownIndex).forEach((s) => s.evaluate())
   }
-  public get $isActive(): boolean {
-    return this._isActiveFunc()
-  }
-  public get $isRequired(): boolean {
-    return this._isRequiredFunc()
-  }
+
   public $isActiveAnd(func: (val: FormElement) => boolean): boolean {
     const val = this._getValueFunc() as FormElement
     return this._isActiveFunc() && func(val)
