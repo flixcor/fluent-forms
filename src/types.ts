@@ -1,7 +1,11 @@
-export type FormQuestion = string | number | (string | number)[]
-export type FormGroup = Record<PropertyKey, unknown>
+export type FormQuestion = string | number | Array<string | number> | FormFile
+export type FormGroup = {
+  [key: string]: FormElement
+}
 export type FormElement = FormQuestion | FormGroup | FormGroup[]
 export type Form = Record<PropertyKey, FormElement>
+
+export type FormFile = URL | URL[]
 
 export interface IFormBuilder<T extends Form> {
   getState: () => FormState<T>
@@ -26,15 +30,6 @@ export interface IFormStateObject {
   readonly $isRequired: boolean
   readonly $path: string
 }
-
-////////////////////////////////////
-////////////////////////////////////
-////////////////////////////////////
-////////////////////////////////////
-////////////////////////////////////
-////////////////////////////////////
-////////////////////////////////////
-////////////////////////////////////
 
 export type FormConfig<T extends FormGroup> = InBetween<T, T>
 
@@ -74,11 +69,6 @@ export interface IGroupElementBuilder<TGroup extends FormGroup> {
   $isRequired?: boolean | ((form: FormState<TGroup>, index: number) => boolean)
 }
 
-export interface IDeffoBuilder<TGroup extends FormGroup> {
-  $isActive: (form: FormState<TGroup>, index: number) => boolean
-  $isRequired: (form: FormState<TGroup>, index: number) => boolean
-}
-
 export type FormState<T extends FormGroup> = GroupState<T, T>
 
 export type GroupState<T extends FormGroup, I extends FormGroup> = {
@@ -91,10 +81,6 @@ export type GroupState<T extends FormGroup, I extends FormGroup> = {
     : never
 } &
   IFormStateObject
-
-//////////////////////////////
-/////////////////////////////
-////////////////////////////
 
 export type RecursivePartial<T> = {
   [P in keyof T]?: T[P] extends Array<unknown>

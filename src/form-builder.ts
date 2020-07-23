@@ -8,13 +8,17 @@ import {
   GroupState,
   IFormBuilder,
   IArrayOperations,
-  IDeffoBuilder,
   RecursivePartial,
   IQuestionState,
   FormElement,
 } from './types'
 
 import { defineProperty } from './utilities'
+
+interface IDeffoBuilder<TGroup extends FormGroup> {
+  $isActive: (form: FormState<TGroup>, index: number) => boolean
+  $isRequired: (form: FormState<TGroup>, index: number) => boolean
+}
 
 const isInteger = (s: unknown): boolean =>
   typeof s === 'string' && /^-{0,1}\d+$/.test(s)
@@ -106,7 +110,7 @@ export function buildFormState<T extends FormGroup>(
   index = (): number => -1,
   configMap = new Map<string, IDeffoBuilder<T>>(),
   isRoot = true,
-  root = {} as FormState<T>,
+  root = Object.create(ElementState.prototype) as FormState<T>,
   stateArr: ElementState[] = []
 ): FormState<T> {
   const getConfigOrDefault = (p: string) =>
@@ -152,7 +156,7 @@ export function buildFormState<T extends FormGroup>(
     setVal,
     isActiveFunc,
     isRequiredFunc,
-    stateArr
+    root
   )
 
   stateArr.push(el)
@@ -179,8 +183,7 @@ export function buildFormState<T extends FormGroup>(
             groupConfig,
             newPath,
             configMap,
-            root,
-            stateArr
+            root
           ),
         ]
       }
@@ -192,8 +195,7 @@ export function buildFormState<T extends FormGroup>(
         index,
         configMap,
         false,
-        root,
-        stateArr
+        root
       )
 
       return [key, state]
@@ -204,7 +206,7 @@ export function buildFormState<T extends FormGroup>(
 
   if (isRoot) {
     Object.assign(root, el)
-    stateArr.forEach((s) => s.evaluate())
+    loopState(root)
   }
 
   return (el as unknown) as FormState<T>
@@ -217,8 +219,7 @@ function buildRecurring<T extends FormGroup>(
   groupConfig: FormConfig<T>,
   path: () => string[],
   configMap: Map<string, IDeffoBuilder<T>>,
-  root: FormState<T>,
-  stateArr: ElementState[]
+  root: FormState<T>
 ): Array<GroupState<T, T>> & IArrayOperations<T> {
   const { $isActive, $isRequired } = groupConfig
   const _isActive = boolFuncOrDefault($isActive, () => true)
@@ -237,8 +238,7 @@ function buildRecurring<T extends FormGroup>(
       i,
       configMap,
       false,
-      root,
-      stateArr
+      root
     )
 
     return sub
@@ -283,13 +283,33 @@ function buildRecurring<T extends FormGroup>(
   return arr
 }
 
+function loopState<T>(current: unknown) {
+  if (Array.isArray(current)) {
+    for (const iterator of current) {
+      loopState(iterator)
+    }
+  }
+  if (current instanceof ElementState) {
+    current.evaluate()
+    for (const [key, value] of Object.entries(current)) {
+      if (
+        typeof key === 'string' &&
+        !key.startsWith('_') &&
+        !key.startsWith('$')
+      ) {
+        loopState(value)
+      }
+    }
+  }
+}
+
 class ElementState implements IQuestionState<FormElement> {
   private _isActiveFunc: () => boolean
   private _getValueFunc: () => unknown
   private _pathFunc: () => string
   private _setValueFunc: (val: unknown) => void
   private _isRequiredFunc: () => boolean
-  private _stateArr: ElementState[]
+  private _root: FormState<any>
   $isActive = true
   $isRequired = false
 
@@ -299,14 +319,14 @@ class ElementState implements IQuestionState<FormElement> {
     setValueFunc: (val: unknown) => void,
     isActiveFunc: () => boolean,
     isRequiredFunc: () => boolean,
-    stateArr: ElementState[]
+    root: FormState<any>
   ) {
     this._pathFunc = path
     this._getValueFunc = getValueFunc
     this._setValueFunc = setValueFunc
     this._isActiveFunc = isActiveFunc
     this._isRequiredFunc = isRequiredFunc
-    this._stateArr = stateArr
+    this._root = root
   }
 
   public evaluate(): void {
@@ -323,8 +343,7 @@ class ElementState implements IQuestionState<FormElement> {
   }
   public set $value(val: FormElement) {
     this._setValueFunc(val)
-    const ownIndex = this._stateArr.indexOf(this)
-    this._stateArr.filter((_, i) => i !== ownIndex).forEach((s) => s.evaluate())
+    loopState(this._root)
   }
 
   public $isActiveAnd(func: (val: FormElement) => boolean): boolean {

@@ -1,24 +1,24 @@
 /// <reference types="jest" />
 
-import { Form, createFormBuilder, FormElement } from '../src'
+import { createFormBuilder } from '../src'
 
-export interface IMyForm extends Form {
-  [key: string]: FormElement
+export type IMyForm = {
   question1: number
   question2: string
   group1: IGroup1
   recurringGroup: IGroup2[]
+  file: URL
 }
 
-interface IGroup1 {
-  [key: string]: FormElement
+type IGroup1 = {
   question3: (number | string)[]
 }
 
-interface IGroup2 {
-  [key: string]: FormElement
+type IGroup2 = {
   question4: string
 }
+
+const urlString = 'https://localhost:433/file.csv'
 
 function getForm(): IMyForm {
   return {
@@ -35,6 +35,7 @@ function getForm(): IMyForm {
         question4: 'example 2',
       },
     ],
+    file: new URL(urlString),
   }
 }
 
@@ -64,6 +65,7 @@ const builder = createFormBuilder<IMyForm>(getForm(), {
       },
     },
   ],
+  file: {},
 })
 const state = builder.getState()
 const form = builder.getForm()
@@ -71,6 +73,7 @@ const { group1, question1, question2, recurringGroup } = state
 const question3 = group1.question3
 
 test('proxy test', () => {
+  expect(state.file.$value.toString()).toBe(urlString)
   expect(state.group1.question3.$value).toStrictEqual([22.5])
   expect(question1.$value).toBe(5)
   expect(group1.$isActive).toBe(false)
