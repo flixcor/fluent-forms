@@ -263,6 +263,7 @@ function buildRecurring<T extends FormGroup>(
     value: (index: number) => {
       arr.splice(index, 1)
       formGroups.splice(index, 1)
+      loopState(root)
     },
     writable: false,
     enumerable: false,
@@ -275,6 +276,7 @@ function buildRecurring<T extends FormGroup>(
         index,
         mapper(() => formGroups.indexOf(val))
       )
+      loopState(root)
     },
     writable: false,
     enumerable: false,
