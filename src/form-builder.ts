@@ -253,8 +253,10 @@ function buildRecurring<T extends FormGroup>(
 
   defineProperty(arr, '$append', {
     value: (val: T) => {
+      const mapped = mapper(() => formGroups.indexOf(val))
       formGroups.push(val)
-      arr.push(mapper(() => formGroups.indexOf(val)))
+      arr.push(mapped)
+      loopState(root)
     },
     writable: false,
     enumerable: false,
@@ -270,12 +272,9 @@ function buildRecurring<T extends FormGroup>(
   })
   defineProperty(arr, '$insert', {
     value: (index: number, val: T) => {
+      const mapped = mapper(() => formGroups.indexOf(val))
       formGroups.splice(1, index, val)
-      arr.splice(
-        1,
-        index,
-        mapper(() => formGroups.indexOf(val))
-      )
+      arr.splice(1, index, mapped)
       loopState(root)
     },
     writable: false,
