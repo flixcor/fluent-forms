@@ -73,6 +73,8 @@ const { group1, question1, question2, recurringGroup } = state
 const question3 = group1.question3
 
 test('proxy test', () => {
+  expect(state.question1.$isRequired).toBe(true)
+  expect(state.question2.$isRequired).toBe(false)
   expect(state.file.$value.toString()).toBe(urlString)
   expect(state.group1.question3.$value).toStrictEqual([22.5])
   expect(question1.$value).toBe(5)

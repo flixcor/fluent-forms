@@ -57,11 +57,11 @@ function isRequiredRecursive(
     return false
   }
 
-  const pathToCheck = path.slice(0, level).join('.')
+  const pathToCheck = path.slice(0, level + 1).join('.')
 
   return (
     isRequiredFunc(pathToCheck) ||
-    isActiveRecursive(path, isRequiredFunc, level + 1)
+    isRequiredRecursive(path, isRequiredFunc, level + 1)
   )
 }
 
