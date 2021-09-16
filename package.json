@@ -33,7 +33,7 @@
     "@types/get-value": "^3.0.1",
     "@types/set-value": "^2.0.0",
     "get-value": "^3.0.1",
-    "set-value": "^3.0.2"
+    "set-value": "^4.0.1"
   },
   "jest": {
     "transform": {
